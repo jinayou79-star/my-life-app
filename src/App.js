@@ -1,95 +1,76 @@
-// ... (상단 색상 C, 유틸, 공통 UI 컴포넌트들은 기존과 동일)
+import React, { useState, useEffect, useRef, useCallback } from "react";
 
-// ── 루틴 탭 (수정됨: reviewDays 추가) ──────────────────────────
-function RoutineTab({ routine, routineLogs, setRoutineLogs, reviewDays }) {
-  const tk = todayKey();
-  const [view, setView] = useState("list");
-  const [detailId, setDetailId] = useState(null);
-  const [running, setRunning] = useState(false);
-  const [elapsed, setElapsed] = useState(0);
-  const timerRef = useRef(null);
+// ── 1. 색상 및 스타일 설정 ──────────────────────────────────
+const C = {
+  bg: "#faf6f1", surface: "#fff9f4", card: "#ffffff",
+  border: "#e8d8c4", accent: "#b5651d", accentL: "#c8773a",
+  warm: "#e8956d", sage: "#6b9e78", amber: "#c9882a",
+  red: "#d4574a", blue: "#5b8fc9", purple: "#8b6bbf",
+  text: "#2d1f0e", sub: "#6b4c2a", muted: "#a07850",
+  cream: "#f5e6d0", shadow: "rgba(120,70,20,0.08)",
+};
 
-  const [title, setTitle] = useState("");
-  const [memo, setMemo] = useState("");
-  const [image, setImage] = useState(null);
-  const [wantReview, setWantReview] = useState(false);
-  const fileRef = useRef(null);
+// ── 2. 유틸리티 함수 ────────────────────────────────────────
+const todayKey = () => new Date().toISOString().slice(0, 10);
+const addDays = (d, n) => {
+  const dt = new Date(d + "T00:00:00"); 
+  dt.setDate(dt.getDate() + n);
+  return dt.toISOString().slice(0, 10);
+};
 
-  useEffect(() => {
-    if (running) {
-      timerRef.current = setInterval(() => setElapsed(e => e + 1), 1000);
-    } else {
-      clearInterval(timerRef.current);
-    }
-    return () => clearInterval(timerRef.current);
-  }, [running]);
-
-  const stopTimer = () => {
-    setRunning(false);
-    const secs = elapsed;
-    setRoutineLogs(prev => {
-      const existing = prev.find(l => l.routineId === routine.id && l.date === tk);
-      if (existing) {
-        return prev.map(l => l.routineId === routine.id && l.date === tk
-          ? { ...l, totalSec: (l.totalSec || 0) + secs, timerDone: true, sessions: [...(l.sessions || []), { sec: secs, time: new Date().toLocaleTimeString() }] }
-          : l
-        );
-      }
-      return [...prev, { id: Date.now(), routineId: routine.id, date: tk, totalSec: secs, timerDone: true, sessions: [{ sec: secs, time: new Date().toLocaleTimeString() }], entries: [] }];
+// ── 3. 커스텀 훅 (데이터 저장) ───────────────────────────────
+function usePersist(key, def) {
+  const [val, setVal] = useState(() => {
+    if (typeof window === "undefined") return def;
+    try { 
+      const s = localStorage.getItem(key); 
+      return s ? JSON.parse(s) : def; 
+    } catch { return def; }
+  });
+  const set = useCallback((v) => {
+    setVal(prev => {
+      const next = typeof v === "function" ? v(prev) : v;
+      try { localStorage.setItem(key, JSON.stringify(next)); } catch {}
+      return next;
     });
-    setElapsed(0);
-  };
-
-  const addEntry = () => {
-    if (!title.trim()) return;
-    // 중요: 부모에게 받은 reviewDays를 사용함
-    const reviews = wantReview ? reviewDays.map(d => ({
-      id: `${Date.now()}-${d}`, days: d, label: `${d}일 후`,
-      dueDate: addDays(tk, d), done: false, doneDate: null,
-    })) : [];
-    
-    const entry = { id: Date.now(), title: title.trim(), memo, image, date: tk, reviews };
-    setRoutineLogs(prev => {
-      const existing = prev.find(l => l.routineId === routine.id && l.date === tk);
-      if (existing) return prev.map(l => l.routineId === routine.id && l.date === tk ? { ...l, entries: [...(l.entries || []), entry] } : l);
-      return [...prev, { id: Date.now() + 1, routineId: routine.id, date: tk, totalSec: 0, timerDone: false, sessions: [], entries: [entry] }];
-    });
-    setTitle(""); setMemo(""); setImage(null); setWantReview(false); setView("list");
-  };
-
-  const allEntries = routineLogs.filter(l => l.routineId === routine.id).flatMap(l => (l.entries || []).map(e => ({ ...e, logId: l.id })));
-
-  // ... (상세보기 view === "detail" 로직 및 "add" 로직은 이전과 동일)
-
-  return (
-    <div style={{ paddingBottom: 24 }}>
-      {/* 타이머 및 목록 렌더링 (이전 답변 코드 참고) */}
-      <SectionTitle action={<Btn small onClick={() => setView("add")}>+ 기록 추가</Btn>}>
-        {routine.icon} {routine.name}
-      </SectionTitle>
-      {/* 목록 맵핑 로직... */}
-    </div>
-  );
+  }, [key]);
+  return [val, set];
 }
 
-// ── 설정 탭 (완성본) ─────────────────────────────────────────
+// ── 4. 공통 UI 컴포넌트 ──────────────────────────────────────
+const Card = ({ children, style = {} }) => (
+  <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 18, padding: "16px 18px", boxShadow: `0 2px 12px ${C.shadow}`, ...style }}>{children}</div>
+);
+
+const Btn = ({ children, onClick, color = C.accent, outline, small, style = {} }) => (
+  <button onClick={onClick} style={{ padding: small ? "7px 14px" : "11px 20px", borderRadius: small ? 20 : 14, border: outline ? `1.5px solid ${color}` : "none", background: outline ? "transparent" : color, color: outline ? color : "#fff", fontSize: small ? 12 : 14, fontWeight: 700, cursor: "pointer", ...style }}>{children}</button>
+);
+
+const Input = ({ value, onChange, placeholder }) => (
+  <input value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} style={{ width: "100%", background: C.bg, border: `1.5px solid ${C.border}`, borderRadius: 12, padding: "11px 14px", color: C.text, fontSize: 14, outline: "none", boxSizing: "border-box" }} />
+);
+
+const SectionTitle = ({ children }) => (
+  <div style={{ color: C.text, fontSize: 18, fontWeight: 800, marginBottom: 16 }}>{children}</div>
+);
+
+const TabBtn = ({ active, onClick, label, icon }) => (
+  <button onClick={onClick} style={{ background: "transparent", border: "none", display: "flex", flexDirection: "column", alignItems: "center", gap: 4, cursor: "pointer", flex: 1 }}>
+    <span style={{ fontSize: 20, opacity: active ? 1 : 0.4 }}>{icon}</span>
+    <span style={{ fontSize: 10, fontWeight: 700, color: active ? C.accent : C.muted }}>{label}</span>
+  </button>
+);
+
+// ── 5. 설정 탭 (데이터 백업 및 주기 수정) ───────────────────────
 function SettingsTab({ reviewDays, setReviewDays, allData, setAllData }) {
   const [tempDays, setTempDays] = useState(reviewDays.join(", "));
-
-  const saveDays = () => {
-    const nextDays = tempDays.split(",").map(d => parseInt(d.trim())).filter(d => !isNaN(d) && d > 0);
-    setReviewDays(nextDays.sort((a, b) => a - b));
-    alert("복습 주기가 저장되었습니다!");
-  };
 
   const exportData = () => {
     const dataStr = JSON.stringify(allData, null, 2);
     const blob = new Blob([dataStr], { type: "application/json" });
     const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = "routine_backup.json";
-    link.click();
+    const a = document.createElement("a");
+    a.href = url; a.download = "my_life_backup.json"; a.click();
   };
 
   const importData = (e) => {
@@ -98,13 +79,12 @@ function SettingsTab({ reviewDays, setReviewDays, allData, setAllData }) {
     const reader = new FileReader();
     reader.onload = (ev) => {
       try {
-        const imported = JSON.parse(ev.target.result);
-        if (confirm("기존 데이터를 덮어씌울까요?")) {
-          setAllData(imported);
-          alert("복구 완료!");
+        const data = JSON.parse(ev.target.result);
+        if (window.confirm("데이터를 복원하시겠습니까? 현재 데이터가 덮어씌워집니다.")) {
+          setAllData(data);
           window.location.reload();
         }
-      } catch { alert("파일 형식이 잘못되었습니다."); }
+      } catch { alert("잘못된 파일 형식입니다."); }
     };
     reader.readAsText(file);
   };
@@ -113,28 +93,64 @@ function SettingsTab({ reviewDays, setReviewDays, allData, setAllData }) {
     <div>
       <SectionTitle>⚙️ 설정</SectionTitle>
       <Card style={{ marginBottom: 16 }}>
-        <div style={{ fontWeight: 800, marginBottom: 8 }}>복습 주기 (일 단위)</div>
+        <div style={{ fontWeight: 800, marginBottom: 8, fontSize: 14 }}>📅 복습 주기 설정</div>
         <div style={{ display: "flex", gap: 8 }}>
           <Input value={tempDays} onChange={setTempDays} />
-          <Btn onClick={saveDays} small>변경</Btn>
+          <Btn small onClick={() => {
+            const next = tempDays.split(",").map(d => parseInt(d.trim())).filter(d => !isNaN(d));
+            setReviewDays(next);
+            alert("저장되었습니다!");
+          }}>저장</Btn>
         </div>
       </Card>
       <Card>
-        <div style={{ fontWeight: 800, marginBottom: 12 }}>데이터 관리</div>
-        <Btn onClick={exportData} outline style={{ width: "100%", marginBottom: 8 }}>📤 내보내기</Btn>
+        <div style={{ fontWeight: 800, marginBottom: 12, fontSize: 14 }}>💾 데이터 백업</div>
+        <Btn onClick={exportData} outline style={{ width: "100%", marginBottom: 8 }}>📤 내보내기 (.json)</Btn>
         <div style={{ position: "relative" }}>
           <Btn outline color={C.sage} style={{ width: "100%" }}>📥 가져오기</Btn>
-          <input type="file" onChange={importData} style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", opacity: 0 }} />
+          <input type="file" accept=".json" onChange={importData} style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", opacity: 0 }} />
         </div>
       </Card>
     </div>
   );
 }
 
-// ── 하단 탭 버튼 컴포넌트 (누락 주의!) ──────────────────────────
-const TabBtn = ({ active, onClick, label, icon }) => (
-  <button onClick={onClick} style={{ background: "transparent", border: "none", display: "flex", flexDirection: "column", alignItems: "center", gap: 4, cursor: "pointer", flex: 1 }}>
-    <span style={{ fontSize: 20, filter: active ? "none" : "grayscale(1) opacity(0.5)" }}>{icon}</span>
-    <span style={{ fontSize: 10, fontWeight: 700, color: active ? C.accent : C.muted }}>{label}</span>
-  </button>
-);
+// ── 6. 메인 앱 (최하단에 export default 확인) ──────────────────
+export default function DailyRoutineApp() {
+  const [activeTab, setActiveTab] = usePersist("activeTab", "home");
+  const [reviewDays, setReviewDays] = usePersist("reviewDays", [1, 3, 7, 15]);
+  const [routines, setRoutines] = usePersist("routines", [{ id: 1, name: "영어 공부", icon: "📖" }]);
+  const [events, setEvents] = usePersist("events", []);
+  const [todos, setTodos] = usePersist("todos", []);
+  const [routineLogs, setRoutineLogs] = usePersist("routineLogs", []);
+
+  const allData = { routines, events, todos, routineLogs, reviewDays };
+  const setAllData = (d) => {
+    if (d.routines) setRoutines(d.routines);
+    if (d.events) setEvents(d.events);
+    if (d.todos) setTodos(d.todos);
+    if (d.routineLogs) setRoutineLogs(d.routineLogs);
+    if (d.reviewDays) setReviewDays(d.reviewDays);
+  };
+
+  return (
+    <div style={{ maxWidth: 480, margin: "0 auto", minHeight: "100vh", background: C.bg, position: "relative" }}>
+      <div style={{ padding: "20px 16px 100px 16px" }}>
+        {activeTab === "home" && <SectionTitle>🏠 홈 화면</SectionTitle>}
+        {activeTab === "settings" && (
+          <SettingsTab 
+            reviewDays={reviewDays} 
+            setReviewDays={setReviewDays} 
+            allData={allData} 
+            setAllData={setAllData} 
+          />
+        )}
+      </div>
+
+      <div style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 480, height: 70, background: "#fff", display: "flex", alignItems: "center", borderTop: `1px solid ${C.border}`, zIndex: 1000 }}>
+        <TabBtn active={activeTab === "home"} onClick={() => setActiveTab("home")} label="홈" icon="🏠" />
+        <TabBtn active={activeTab === "settings"} onClick={() => setActiveTab("settings")} label="설정" icon="⚙️" />
+      </div>
+    </div>
+  );
+}
