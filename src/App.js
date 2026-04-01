@@ -73,20 +73,39 @@ function HomeTab({ routines, events, todos, setTodos, onTabChange, routineLogs, 
   const hour = new Date().getHours();
   const greeting = hour < 6 ? "새벽도 파이팅이에요" : hour < 12 ? "좋은 아침이에요" : hour < 18 ? "오후도 잘 보내고 있나요" : "오늘 하루 수고했어요";
 
+  // 이번주 날짜 목록
   const weekDays = Array.from({ length: 7 }, (_, i) => {
     const d = new Date(); d.setDate(d.getDate() - d.getDay() + i);
     return d.toISOString().slice(0, 10);
   });
-  const todayEvents = events.filter(e => e.date === tk).sort((a, b) => a.time > b.time ? 1 : -1);
+
+  // 이번주 일정 목록 (오늘 포함 이후만)
+  const weekEvents = events
+    .filter(e => weekDays.includes(e.date))
+    .sort((a, b) => a.date > b.date ? 1 : a.date < b.date ? -1 : a.time > b.time ? 1 : -1);
+
   const todayTodos = todos.filter(t => t.date === tk);
   const doneTodos = todayTodos.filter(t => t.done).length;
 
+  // 복습 알람: dueDate가 정확히 오늘인 것만 (오늘 한 것 제외 = 어제 이전 등록분)
   const dueReviews = routineLogs.flatMap(log =>
     (log.entries || []).flatMap(entry =>
-      (entry.reviews || []).filter(r => r.dueDate <= tk && !r.done)
+      (entry.reviews || [])
+        .filter(r => r.dueDate === tk && !r.done && entry.date < tk)
         .map(r => ({ ...r, entryId: entry.id, logId: log.id, entryTitle: entry.title, routineId: log.routineId }))
     )
   );
+
+  // 지난 복습 미완료 (dueDate < 오늘)
+  const overdueReviews = routineLogs.flatMap(log =>
+    (log.entries || []).flatMap(entry =>
+      (entry.reviews || [])
+        .filter(r => r.dueDate < tk && !r.done && entry.date < tk)
+        .map(r => ({ ...r, entryId: entry.id, logId: log.id, entryTitle: entry.title, routineId: log.routineId }))
+    )
+  );
+
+  const allDueReviews = [...overdueReviews, ...dueReviews];
 
   const todayDone = (rId) => routineLogs.some(l => l.routineId === rId && l.date === tk && l.timerDone);
 
@@ -98,62 +117,40 @@ function HomeTab({ routines, events, todos, setTodos, onTabChange, routineLogs, 
     }));
   };
 
+  const dayLabel = (d) => {
+    if (d === tk) return "오늘";
+    const diff = Math.round((new Date(d + "T00:00:00") - new Date(tk + "T00:00:00")) / 86400000);
+    if (diff === 1) return "내일";
+    return new Date(d + "T00:00:00").toLocaleDateString("ko-KR", { weekday: "short", month: "numeric", day: "numeric" });
+  };
+
   return (
     <div style={{ paddingBottom: 24 }}>
+      {/* 인사 */}
       <div style={{ marginBottom: 20 }}>
         <div style={{ color: C.muted, fontSize: 12, marginBottom: 4 }}>{new Date().toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric", weekday: "long" })}</div>
         <div style={{ color: C.accent, fontSize: 22, fontWeight: 800, letterSpacing: -0.5 }}>{greeting}</div>
       </div>
 
-      {dueReviews.length > 0 && (
-        <Card style={{ marginBottom: 14, border: `1.5px solid ${C.accent}` }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-            <div style={{ color: C.accent, fontSize: 13, fontWeight: 800 }}>오늘의 복습</div>
-            <Chip>{dueReviews.length}건</Chip>
-          </div>
-          {dueReviews.map(r => {
-            const routine = routines.find(rt => rt.id === r.routineId);
-            const isOverdue = r.dueDate < tk;
-            return (
-              <div key={r.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: C.faint, borderRadius: 10, marginBottom: 6, border: `1px solid ${isOverdue ? C.red + "44" : C.border}` }}>
-                <div style={{ flex: 1 }}>
-                  <div style={{ color: C.accent, fontSize: 13, fontWeight: 600 }}>{r.entryTitle}</div>
-                  <div style={{ color: C.muted, fontSize: 11, marginTop: 2 }}>{routine?.name || ""} · {r.label}{isOverdue ? ` (${r.dueDate} 지남)` : " · 오늘"}</div>
-                </div>
-                <Btn small onClick={() => completeReview(r.logId, r.entryId, r.id)}>완료 ✓</Btn>
-              </div>
-            );
-          })}
-        </Card>
-      )}
-
+      {/* 주간 일정 — 목록형 */}
       <Card style={{ marginBottom: 14 }}>
-        <div style={{ color: C.accent, fontSize: 13, fontWeight: 700, marginBottom: 12 }}>이번 주</div>
-        <div style={{ display: "flex", gap: 3 }}>
-          {weekDays.map(d => {
-            const isToday = d === tk;
-            const hasEvent = events.some(e => e.date === d);
-            return (
-              <div key={d} onClick={() => onTabChange("calendar")} style={{ flex: 1, textAlign: "center", cursor: "pointer", background: isToday ? C.accent : "transparent", borderRadius: 10, padding: "8px 0" }}>
-                <div style={{ fontSize: 10, color: isToday ? "#fff" : C.muted, marginBottom: 4 }}>{new Date(d + "T00:00").toLocaleDateString("ko-KR", { weekday: "short" })}</div>
-                <div style={{ fontSize: 14, fontWeight: isToday ? 800 : 400, color: isToday ? "#fff" : C.accent }}>{new Date(d + "T00:00").getDate()}</div>
-                {hasEvent && <div style={{ width: 4, height: 4, borderRadius: "50%", background: isToday ? "#fff" : C.accent, margin: "4px auto 0" }} />}
-              </div>
-            );
-          })}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+          <div style={{ color: C.accent, fontSize: 13, fontWeight: 700 }}>이번 주 일정</div>
+          <button onClick={() => onTabChange("calendar")} style={{ background: "transparent", border: "none", color: C.muted, fontSize: 12, cursor: "pointer", padding: 0 }}>일정 탭 →</button>
         </div>
-        {todayEvents.length > 0 && (
-          <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${C.border}` }}>
-            {todayEvents.slice(0, 3).map(e => (
-              <div key={e.id} style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 6 }}>
-                <div style={{ width: 2, height: 26, borderRadius: 2, background: e.important ? C.red : C.accentMid, flexShrink: 0 }} />
-                <div><div style={{ color: C.accent, fontSize: 13, fontWeight: 600 }}>{e.important ? "★ " : ""}{e.title}</div><div style={{ color: C.muted, fontSize: 11 }}>{e.time}</div></div>
-              </div>
-            ))}
+        {weekEvents.length === 0 && <div style={{ color: C.placeholder, fontSize: 13 }}>이번 주 일정이 없어요</div>}
+        {weekEvents.map(e => (
+          <div key={e.id} style={{ display: "flex", gap: 10, alignItems: "center", padding: "8px 0", borderBottom: `1px solid ${C.border}` }}>
+            <div style={{ width: 2, height: "100%", minHeight: 28, borderRadius: 2, background: e.important ? C.red : C.accentMid, flexShrink: 0 }} />
+            <div style={{ flex: 1 }}>
+              <div style={{ color: C.accent, fontSize: 13, fontWeight: 600 }}>{e.important ? "★ " : ""}{e.title}</div>
+              <div style={{ color: C.muted, fontSize: 11, marginTop: 2 }}>{dayLabel(e.date)} {e.time}</div>
+            </div>
           </div>
-        )}
+        ))}
       </Card>
 
+      {/* 오늘의 할일 */}
       <Card style={{ marginBottom: 14 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
           <div style={{ color: C.accent, fontSize: 13, fontWeight: 700 }}>오늘의 할일</div>
@@ -168,13 +165,15 @@ function HomeTab({ routines, events, todos, setTodos, onTabChange, routineLogs, 
                 {t.done && <span style={{ color: "#fff", fontSize: 10, fontWeight: 900 }}>✓</span>}
               </button>
               <span style={{ color: C.accent, fontSize: 13, flex: 1, textDecoration: t.done ? "line-through" : "none" }}>{t.important ? "★ " : ""}{t.text}</span>
+              {t.dueDate && <span style={{ color: C.muted, fontSize: 11 }}>{t.dueDate}</span>}
             </div>
           ))}
         </div>
       </Card>
 
+      {/* 오늘의 루틴 */}
       {routines.length > 0 && (
-        <Card>
+        <Card style={{ marginBottom: 14 }}>
           <div style={{ color: C.accent, fontSize: 13, fontWeight: 700, marginBottom: 12 }}>오늘의 루틴</div>
           {routines.map(r => {
             const done = todayDone(r.id);
@@ -190,6 +189,31 @@ function HomeTab({ routines, events, todos, setTodos, onTabChange, routineLogs, 
           })}
         </Card>
       )}
+
+      {/* 오늘의 복습 — 맨 아래 */}
+      {allDueReviews.length > 0 && (
+        <Card style={{ border: `1.5px solid ${C.accent}` }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+            <div style={{ color: C.accent, fontSize: 13, fontWeight: 800 }}>오늘의 복습</div>
+            <Chip>{allDueReviews.length}건</Chip>
+          </div>
+          {allDueReviews.map(r => {
+            const routine = routines.find(rt => rt.id === r.routineId);
+            const isOverdue = r.dueDate < tk;
+            return (
+              <div key={r.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: C.faint, borderRadius: 10, marginBottom: 6, border: `1px solid ${isOverdue ? C.red + "44" : C.border}` }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ color: C.accent, fontSize: 13, fontWeight: 600 }}>{r.entryTitle}</div>
+                  <div style={{ color: C.muted, fontSize: 11, marginTop: 2 }}>
+                    {routine?.name || ""} · {r.label}{isOverdue ? ` (${r.dueDate} 지남)` : ""}
+                  </div>
+                </div>
+                <Btn small onClick={() => completeReview(r.logId, r.entryId, r.id)}>완료 ✓</Btn>
+              </div>
+            );
+          })}
+        </Card>
+      )}
     </div>
   );
 }
@@ -199,14 +223,19 @@ function CalendarTab({ events, setEvents, todos, setTodos }) {
   const [month, setMonth] = useState(new Date(new Date().getFullYear(), new Date().getMonth(), 1));
   const [sel, setSel] = useState(todayKey());
   const [evtTitle, setEvtTitle] = useState(""); const [evtTime, setEvtTime] = useState("09:00"); const [evtImp, setEvtImp] = useState(false);
-  const [todoText, setTodoText] = useState(""); const [todoImp, setTodoImp] = useState(false);
+  const [todoText, setTodoText] = useState(""); const [todoImp, setTodoImp] = useState(false); const [todoDue, setTodoDue] = useState("");
   const tk = todayKey(); const y = month.getFullYear(), m = month.getMonth();
   const firstDay = new Date(y, m, 1).getDay(); const daysInMonth = new Date(y, m + 1, 0).getDate();
   const dKey = (d) => `${y}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
 
+  const addTodo = () => {
+    if (!todoText.trim()) return;
+    setTodos(prev => [...prev, { id: Date.now(), text: todoText.trim(), date: sel, done: false, important: todoImp, dueDate: todoDue || null }]);
+    setTodoText(""); setTodoImp(false); setTodoDue("");
+  };
+
   return (
     <div style={{ paddingBottom: 24 }}>
-      <STitle>일정</STitle>
       <Card style={{ marginBottom: 14 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
           <button onClick={() => setMonth(new Date(y, m - 1, 1))} style={{ background: "transparent", border: `1px solid ${C.border}`, borderRadius: 8, padding: "5px 11px", color: C.accentMid, cursor: "pointer" }}>‹</button>
@@ -238,6 +267,8 @@ function CalendarTab({ events, setEvents, todos, setTodos }) {
 
       <Card>
         <div style={{ color: C.accent, fontSize: 14, fontWeight: 800, marginBottom: 14 }}>{fmtDate(sel)} {sel === tk && <Chip>오늘</Chip>}</div>
+
+        {/* 일정 섹션 */}
         <div style={{ color: C.muted, fontSize: 11, fontWeight: 700, letterSpacing: 1, marginBottom: 8 }}>일정</div>
         {events.filter(e => e.date === sel).length === 0 && <div style={{ color: C.placeholder, fontSize: 13, marginBottom: 8 }}>없음</div>}
         {events.filter(e => e.date === sel).sort((a, b) => a.time > b.time ? 1 : -1).map(e => (
@@ -252,7 +283,10 @@ function CalendarTab({ events, setEvents, todos, setTodos }) {
           <button onClick={() => setEvtImp(v => !v)} style={{ width: 36, height: 36, borderRadius: 8, border: `1px solid ${evtImp ? C.red : C.border}`, background: evtImp ? `${C.red}14` : C.faint, cursor: "pointer" }}>★</button>
           <Btn onClick={() => { if (!evtTitle.trim()) return; setEvents(prev => [...prev, { id: Date.now(), title: evtTitle.trim(), date: sel, time: evtTime, important: evtImp }]); setEvtTitle(""); setEvtImp(false); }} style={{ height: 36, padding: "0 12px" }}>+</Btn>
         </div>
+
         <Divider />
+
+        {/* 할일 섹션 */}
         <div style={{ color: C.muted, fontSize: 11, fontWeight: 700, letterSpacing: 1, marginBottom: 8 }}>할일</div>
         {todos.filter(t => t.date === sel).length === 0 && <div style={{ color: C.placeholder, fontSize: 13, marginBottom: 8 }}>없음</div>}
         {todos.filter(t => t.date === sel).map(t => (
@@ -261,13 +295,22 @@ function CalendarTab({ events, setEvents, todos, setTodos }) {
               {t.done && <span style={{ color: "#fff", fontSize: 10, fontWeight: 900 }}>✓</span>}
             </button>
             <span style={{ flex: 1, color: C.accent, fontSize: 13, textDecoration: t.done ? "line-through" : "none" }}>{t.important ? "★ " : ""}{t.text}</span>
+            {t.dueDate && <span style={{ color: C.muted, fontSize: 11, flexShrink: 0 }}>~{t.dueDate}</span>}
             <button onClick={() => setTodos(prev => prev.filter(x => x.id !== t.id))} style={{ background: "transparent", border: "none", color: C.muted, cursor: "pointer", fontSize: 16 }}>×</button>
           </div>
         ))}
-        <div style={{ display: "flex", gap: 6 }}>
-          <Input value={todoText} onChange={setTodoText} placeholder="할일 추가..." style={{ flex: 1 }} onKeyDown={e => e.key === "Enter" && todoText.trim() && (setTodos(prev => [...prev, { id: Date.now(), text: todoText.trim(), date: sel, done: false, important: todoImp }]), setTodoText(""), setTodoImp(false))} />
-          <button onClick={() => setTodoImp(v => !v)} style={{ width: 36, height: 36, borderRadius: 8, border: `1px solid ${todoImp ? C.red : C.border}`, background: todoImp ? `${C.red}14` : C.faint, cursor: "pointer" }}>★</button>
-          <Btn onClick={() => { if (!todoText.trim()) return; setTodos(prev => [...prev, { id: Date.now(), text: todoText.trim(), date: sel, done: false, important: todoImp }]); setTodoText(""); setTodoImp(false); }} style={{ height: 36, padding: "0 12px" }}>+</Btn>
+        {/* 할일 입력 — 완료일 포함 */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <div style={{ display: "flex", gap: 6 }}>
+            <Input value={todoText} onChange={setTodoText} placeholder="할일 추가..." style={{ flex: 1 }} onKeyDown={e => e.key === "Enter" && addTodo()} />
+            <button onClick={() => setTodoImp(v => !v)} style={{ width: 36, height: 36, borderRadius: 8, border: `1px solid ${todoImp ? C.red : C.border}`, background: todoImp ? `${C.red}14` : C.faint, cursor: "pointer" }}>★</button>
+            <Btn onClick={addTodo} style={{ height: 36, padding: "0 12px" }}>+</Btn>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ color: C.muted, fontSize: 12, flexShrink: 0 }}>완료일</span>
+            <input type="date" value={todoDue} onChange={e => setTodoDue(e.target.value)}
+              style={{ flex: 1, background: C.faint, border: `1px solid ${C.border}`, borderRadius: 10, padding: "8px 10px", color: todoDue ? C.accent : C.placeholder, fontSize: 12, outline: "none" }} />
+          </div>
         </div>
       </Card>
     </div>
@@ -281,6 +324,7 @@ function RoutineTab({ routine, routineLogs, setRoutineLogs }) {
   const [detailId, setDetailId] = useState(null);
   const [running, setRunning] = useState(false);
   const [elapsed, setElapsed] = useState(0);
+  const [activeEntryId, setActiveEntryId] = useState(null);
   const timerRef = useRef(null);
   const fileRef = useRef(null);
   const [fTitle, setFTitle] = useState(""); const [fMemo, setFMemo] = useState(""); const [fImage, setFImage] = useState(null); const [fReview, setFReview] = useState(false);
@@ -305,7 +349,7 @@ function RoutineTab({ routine, routineLogs, setRoutineLogs }) {
       if (ex) return prev.map(l => l.routineId === routine.id && l.date === tk ? { ...l, totalSec: (l.totalSec || 0) + secs, timerDone: true, sessions: [...(l.sessions || []), { sec: secs, time: new Date().toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" }) }] } : l);
       return [...prev, { id: Date.now(), routineId: routine.id, date: tk, totalSec: secs, timerDone: true, sessions: [{ sec: secs, time: new Date().toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" }) }], entries: [] }];
     });
-    setElapsed(0);
+    setElapsed(0); setActiveEntryId(null);
   };
 
   const addEntry = () => {
@@ -390,31 +434,41 @@ function RoutineTab({ routine, routineLogs, setRoutineLogs }) {
 
   return (
     <div style={{ paddingBottom: 24 }}>
-      {hasTimer && (
-        <Card style={{ marginBottom: 14, textAlign: "center" }}>
-          <div style={{ fontSize: 42, fontWeight: 800, color: C.accent, letterSpacing: -2, marginBottom: 6 }}>{fmtSec(elapsed)}</div>
-          {todayLog?.totalSec > 0 && <div style={{ color: C.muted, fontSize: 12, marginBottom: 10 }}>오늘 누적 {fmtSec(todayLog.totalSec)}</div>}
-          <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
-            {!running ? <Btn onClick={() => { setElapsed(0); setRunning(true); }}>▶ 시작</Btn> : <Btn onClick={stopTimer}>■ 정지 · 저장</Btn>}
-            {running && <Btn variant="outline" onClick={() => { setRunning(false); setElapsed(0); }}>취소</Btn>}
-          </div>
-        </Card>
-      )}
       <STitle action={<Btn small onClick={() => setView("add")}>+ 추가</Btn>}>{routine.icon} {routine.name}</STitle>
       {allEntries.length === 0 && <Card><div style={{ color: C.placeholder, fontSize: 13, textAlign: "center", padding: "20px 0" }}>아직 기록이 없어요</div></Card>}
       {[...allEntries].reverse().map(entry => {
         const pending = (entry.reviews || []).filter(r => !r.done && r.dueDate <= todayKey()).length;
         const allDone = entry.reviews?.length > 0 && entry.reviews.every(r => r.done);
+        const isRunningThis = running && activeEntryId === entry.id;
+        const entryLog = routineLogs.find(l => l.routineId === routine.id && l.date === entry.date);
         return (
-          <Card key={entry.id} style={{ marginBottom: 10 }} onClick={() => { setDetailId(entry.id); setView("detail"); }}>
-            {entry.image && <img src={entry.image} alt="" style={{ width: "calc(100% + 36px)", marginLeft: -18, marginTop: -16, height: 110, objectFit: "cover", display: "block", borderRadius: "12px 12px 0 0", marginBottom: 12 }} />}
-            <div style={{ display: "flex", gap: 5, marginBottom: 7, flexWrap: "wrap" }}>
-              <Chip color={C.accentMid}>{entry.date}</Chip>
-              {allDone && <Chip color={C.green}>복습완료</Chip>}
-              {pending > 0 && <Chip color={C.amber}>복습 {pending}건</Chip>}
+          <Card key={entry.id} style={{ marginBottom: 10 }}>
+            {entry.image && <img src={entry.image} alt="" onClick={() => { setDetailId(entry.id); setView("detail"); }} style={{ width: "calc(100% + 36px)", marginLeft: -18, marginTop: -16, height: 110, objectFit: "cover", display: "block", borderRadius: "12px 12px 0 0", marginBottom: 12, cursor: "pointer" }} />}
+            <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+              <div style={{ flex: 1, cursor: "pointer" }} onClick={() => { setDetailId(entry.id); setView("detail"); }}>
+                <div style={{ display: "flex", gap: 5, marginBottom: 6, flexWrap: "wrap" }}>
+                  <Chip color={C.accentMid}>{entry.date}</Chip>
+                  {allDone && <Chip color={C.green}>복습완료</Chip>}
+                  {pending > 0 && <Chip color={C.amber}>복습 {pending}건</Chip>}
+                </div>
+                <div style={{ color: C.accent, fontSize: 14, fontWeight: 700 }}>{entry.title}</div>
+                {entry.memo && <div style={{ color: C.muted, fontSize: 12, marginTop: 4 }}>{entry.memo.slice(0, 55)}{entry.memo.length > 55 ? "…" : ""}</div>}
+                {entryLog?.totalSec > 0 && entry.date === todayKey() && (
+                  <div style={{ color: C.muted, fontSize: 11, marginTop: 4 }}>⏱ 오늘 누적 {fmtSec(entryLog.totalSec)}</div>
+                )}
+              </div>
+              {/* 항목별 타이머 버튼 */}
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, flexShrink: 0 }}>
+                {isRunningThis ? (
+                  <>
+                    <div style={{ color: C.accent, fontSize: 13, fontWeight: 800, minWidth: 44, textAlign: "center" }}>{fmtSec(elapsed)}</div>
+                    <button onClick={stopTimer} style={{ background: C.accent, border: "none", color: "#fff", borderRadius: 8, padding: "5px 10px", cursor: "pointer", fontSize: 11, fontWeight: 700 }}>■ 정지</button>
+                  </>
+                ) : (
+                  <button onClick={() => { setActiveEntryId(entry.id); setElapsed(0); setRunning(true); }} style={{ background: C.faint, border: `1px solid ${C.border}`, color: C.accentMid, borderRadius: 8, padding: "5px 10px", cursor: "pointer", fontSize: 11, fontWeight: 700, whiteSpace: "nowrap" }}>▶ 시작</button>
+                )}
+              </div>
             </div>
-            <div style={{ color: C.accent, fontSize: 14, fontWeight: 700 }}>{entry.title}</div>
-            {entry.memo && <div style={{ color: C.muted, fontSize: 12, marginTop: 4 }}>{entry.memo.slice(0, 55)}{entry.memo.length > 55 ? "…" : ""}</div>}
             {(entry.reviews || []).length > 0 && (
               <div style={{ display: "flex", gap: 4, marginTop: 10 }}>
                 {entry.reviews.map(r => <div key={r.id} style={{ flex: 1, height: 3, borderRadius: 3, background: r.done ? C.accent : r.dueDate <= todayKey() ? C.amber : C.border }} />)}
@@ -430,6 +484,8 @@ function RoutineTab({ routine, routineLogs, setRoutineLogs }) {
 // ── 통계 ─────────────────────────────────────────────────
 function StatsTab({ routines, routineLogs }) {
   const [period, setPeriod] = useState("week");
+  const [selRoutine, setSelRoutine] = useState(null);
+  const [calMonth, setCalMonth] = useState(new Date(new Date().getFullYear(), new Date().getMonth(), 1));
   const tk = todayKey();
   const getStart = () => { const d = new Date(tk + "T00:00:00"); d.setDate(d.getDate() - (period === "week" ? 6 : 29)); return d.toISOString().slice(0, 10); };
   const start = getStart();
@@ -447,60 +503,130 @@ function StatsTab({ routines, routineLogs }) {
 
   const weekDays = Array.from({ length: 7 }, (_, i) => { const d = new Date(tk + "T00:00:00"); d.setDate(d.getDate() - (6 - i)); return d.toISOString().slice(0, 10); });
 
+  // 월간 캘린더
+  const cy = calMonth.getFullYear(), cm = calMonth.getMonth();
+  const calFirstDay = new Date(cy, cm, 1).getDay();
+  const calDaysInMonth = new Date(cy, cm + 1, 0).getDate();
+  const calKey = (d) => `${cy}-${String(cm + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+
   return (
     <div style={{ paddingBottom: 24 }}>
-      <STitle>통계</STitle>
       <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
         {[["week","주간"],["month","월간"]].map(([k,l]) => (
           <button key={k} onClick={() => setPeriod(k)} style={{ flex: 1, padding: "9px 0", borderRadius: 10, border: `1.5px solid ${period === k ? C.accent : C.border}`, background: period === k ? C.accent : C.card, color: period === k ? "#fff" : C.muted, cursor: "pointer", fontSize: 13, fontWeight: 700 }}>{l}</button>
         ))}
       </div>
-      {period === "week" && routines.length > 0 && (
-        <Card style={{ marginBottom: 14 }}>
-          <div style={{ color: C.accent, fontSize: 13, fontWeight: 700, marginBottom: 14 }}>주간 달성률</div>
-          <div style={{ display: "flex", gap: 4, alignItems: "flex-end", height: 80 }}>
-            {weekDays.map(d => {
-              const done = routines.filter(r => routineLogs.some(l => l.routineId === r.id && l.date === d && l.timerDone)).length;
-              const ratio = routines.length ? done / routines.length : 0;
-              return (
-                <div key={d} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
-                  <div style={{ fontSize: 10, color: C.muted }}>{ratio > 0 ? `${Math.round(ratio * 100)}%` : ""}</div>
-                  <div style={{ width: "100%", borderRadius: "3px 3px 0 0", height: `${Math.max(ratio * 60, ratio > 0 ? 4 : 0)}px`, background: d === tk ? C.accent : C.border2 }} />
-                  <div style={{ fontSize: 10, color: d === tk ? C.accent : C.muted, fontWeight: d === tk ? 700 : 400 }}>{new Date(d + "T00:00").toLocaleDateString("ko-KR", { weekday: "short" })}</div>
-                </div>
-              );
-            })}
-          </div>
-        </Card>
-      )}
-      {routines.length === 0 ? (
-        <Card><div style={{ color: C.placeholder, fontSize: 13, textAlign: "center", padding: "30px 0" }}>설정에서 루틴을 먼저 추가해주세요</div></Card>
-      ) : (
-        <Card style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-            <thead>
-              <tr style={{ borderBottom: `1.5px solid ${C.accent}` }}>
-                {["루틴","횟수","시간","연속","복습"].map(h => <th key={h} style={{ padding: "8px 5px", color: C.accent, fontWeight: 700, textAlign: "center", fontSize: 12 }}>{h}</th>)}
-              </tr>
-            </thead>
-            <tbody>
-              {routines.map((r, i) => {
-                const { count, totalSec, reviewCount, streak } = getStats(r);
-                const hrs = Math.floor(totalSec / 3600), mins = Math.floor((totalSec % 3600) / 60);
-                const timeStr = hrs > 0 ? `${hrs}h${mins}m` : mins > 0 ? `${mins}m` : "-";
-                return (
-                  <tr key={r.id} style={{ borderBottom: `1px solid ${C.border}`, background: i % 2 === 0 ? "transparent" : C.faint }}>
-                    <td style={{ padding: "11px 5px" }}><div style={{ display: "flex", alignItems: "center", gap: 5 }}><span style={{ fontSize: 15 }}>{r.icon}</span><span style={{ color: C.accent, fontWeight: 600, fontSize: 12 }}>{r.name}</span></div></td>
-                    <td style={{ padding: "11px 5px", textAlign: "center", color: count > 0 ? C.accent : C.placeholder, fontWeight: count > 0 ? 700 : 400 }}>{count > 0 ? `${count}회` : "-"}</td>
-                    <td style={{ padding: "11px 5px", textAlign: "center", color: totalSec > 0 ? C.accentMid : C.placeholder, fontWeight: totalSec > 0 ? 600 : 400 }}>{timeStr}</td>
-                    <td style={{ padding: "11px 5px", textAlign: "center", color: streak > 0 ? C.accent : C.placeholder, fontWeight: streak > 0 ? 700 : 400 }}>{streak > 0 ? `${streak}일` : "-"}</td>
-                    <td style={{ padding: "11px 5px", textAlign: "center", color: reviewCount > 0 ? C.accentMid : C.placeholder, fontWeight: reviewCount > 0 ? 600 : 400 }}>{reviewCount > 0 ? `${reviewCount}회` : "-"}</td>
+
+      {period === "week" && (
+        <>
+          {routines.length > 0 && (
+            <Card style={{ marginBottom: 14 }}>
+              <div style={{ color: C.accent, fontSize: 13, fontWeight: 700, marginBottom: 14 }}>주간 달성률</div>
+              <div style={{ display: "flex", gap: 4, alignItems: "flex-end", height: 80 }}>
+                {weekDays.map(d => {
+                  const done = routines.filter(r => routineLogs.some(l => l.routineId === r.id && l.date === d && l.timerDone)).length;
+                  const ratio = routines.length ? done / routines.length : 0;
+                  return (
+                    <div key={d} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+                      <div style={{ fontSize: 10, color: C.muted }}>{ratio > 0 ? `${Math.round(ratio * 100)}%` : ""}</div>
+                      <div style={{ width: "100%", borderRadius: "3px 3px 0 0", height: `${Math.max(ratio * 60, ratio > 0 ? 4 : 0)}px`, background: d === tk ? C.accent : C.border2 }} />
+                      <div style={{ fontSize: 10, color: d === tk ? C.accent : C.muted, fontWeight: d === tk ? 700 : 400 }}>{new Date(d + "T00:00").toLocaleDateString("ko-KR", { weekday: "short" })}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            </Card>
+          )}
+          {routines.length === 0 ? (
+            <Card><div style={{ color: C.placeholder, fontSize: 13, textAlign: "center", padding: "30px 0" }}>설정에서 루틴을 먼저 추가해주세요</div></Card>
+          ) : (
+            <Card style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                <thead>
+                  <tr style={{ borderBottom: `1.5px solid ${C.accent}` }}>
+                    {["루틴","횟수","시간","연속","복습"].map(h => <th key={h} style={{ padding: "8px 5px", color: C.accent, fontWeight: 700, textAlign: "center", fontSize: 12 }}>{h}</th>)}
                   </tr>
+                </thead>
+                <tbody>
+                  {routines.map((r, i) => {
+                    const { count, totalSec, reviewCount, streak } = getStats(r);
+                    const hrs = Math.floor(totalSec / 3600), mins = Math.floor((totalSec % 3600) / 60);
+                    const timeStr = hrs > 0 ? `${hrs}h${mins}m` : mins > 0 ? `${mins}m` : "-";
+                    return (
+                      <tr key={r.id} style={{ borderBottom: `1px solid ${C.border}`, background: i % 2 === 0 ? "transparent" : C.faint }}>
+                        <td style={{ padding: "11px 5px" }}><div style={{ display: "flex", alignItems: "center", gap: 5 }}><span style={{ fontSize: 15 }}>{r.icon}</span><span style={{ color: C.accent, fontWeight: 600, fontSize: 12 }}>{r.name}</span></div></td>
+                        <td style={{ padding: "11px 5px", textAlign: "center", color: count > 0 ? C.accent : C.placeholder, fontWeight: count > 0 ? 700 : 400 }}>{count > 0 ? `${count}회` : "-"}</td>
+                        <td style={{ padding: "11px 5px", textAlign: "center", color: totalSec > 0 ? C.accentMid : C.placeholder, fontWeight: totalSec > 0 ? 600 : 400 }}>{timeStr}</td>
+                        <td style={{ padding: "11px 5px", textAlign: "center", color: streak > 0 ? C.accent : C.placeholder, fontWeight: streak > 0 ? 700 : 400 }}>{streak > 0 ? `${streak}일` : "-"}</td>
+                        <td style={{ padding: "11px 5px", textAlign: "center", color: reviewCount > 0 ? C.accentMid : C.placeholder, fontWeight: reviewCount > 0 ? 600 : 400 }}>{reviewCount > 0 ? `${reviewCount}회` : "-"}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </Card>
+          )}
+        </>
+      )}
+
+      {period === "month" && (
+        <>
+          {/* 루틴 선택 */}
+          <div style={{ display: "flex", gap: 6, overflowX: "auto", marginBottom: 14, paddingBottom: 4 }}>
+            {routines.map(r => (
+              <button key={r.id} onClick={() => setSelRoutine(selRoutine === r.id ? null : r.id)} style={{ flexShrink: 0, padding: "7px 14px", borderRadius: 20, border: `1.5px solid ${selRoutine === r.id ? C.accent : C.border}`, background: selRoutine === r.id ? C.accent : C.card, color: selRoutine === r.id ? "#fff" : C.muted, cursor: "pointer", fontSize: 12, fontWeight: 700 }}>
+                {r.icon} {r.name}
+              </button>
+            ))}
+          </div>
+
+          {/* 월 선택 */}
+          <Card>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+              <button onClick={() => setCalMonth(new Date(cy, cm - 1, 1))} style={{ background: "transparent", border: `1px solid ${C.border}`, borderRadius: 8, padding: "5px 11px", color: C.accentMid, cursor: "pointer" }}>‹</button>
+              <span style={{ color: C.accent, fontSize: 14, fontWeight: 800 }}>{cy}년 {cm + 1}월</span>
+              <button onClick={() => setCalMonth(new Date(cy, cm + 1, 1))} style={{ background: "transparent", border: `1px solid ${C.border}`, borderRadius: 8, padding: "5px 11px", color: C.accentMid, cursor: "pointer" }}>›</button>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", marginBottom: 6 }}>
+              {["일","월","화","수","목","금","토"].map((d, i) => (
+                <div key={d} style={{ textAlign: "center", fontSize: 11, fontWeight: 600, color: i === 0 ? C.red : i === 6 ? C.blue : C.muted, padding: "3px 0" }}>{d}</div>
+              ))}
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 3 }}>
+              {Array.from({ length: calFirstDay }).map((_, i) => <div key={`e${i}`} />)}
+              {Array.from({ length: calDaysInMonth }).map((_, i) => {
+                const d = i + 1, key = calKey(d);
+                const isToday = key === tk;
+                const isFuture = key > tk;
+                const dow = new Date(cy, cm, d).getDay();
+
+                // 선택한 루틴 달성 여부
+                let cellBg = "transparent";
+                let cellBorder = "1px solid transparent";
+                if (selRoutine && !isFuture) {
+                  const done = routineLogs.some(l => l.routineId === selRoutine && l.date === key && l.timerDone);
+                  cellBg = done ? C.accent : C.faint;
+                  cellBorder = done ? "none" : `1px solid ${C.border}`;
+                }
+
+                return (
+                  <div key={d} style={{ aspectRatio: "1", borderRadius: 8, background: cellBg, border: isToday ? `2px solid ${C.accentMid}` : cellBorder, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <span style={{ fontSize: 12, fontWeight: isToday ? 800 : 400, color: selRoutine && !isFuture && routineLogs.some(l => l.routineId === selRoutine && l.date === key && l.timerDone) ? "#fff" : dow === 0 ? C.red : dow === 6 ? C.blue : isFuture ? C.placeholder : C.accent }}>{d}</span>
+                  </div>
                 );
               })}
-            </tbody>
-          </table>
-        </Card>
+            </div>
+            {selRoutine && (
+              <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${C.border}`, display: "flex", gap: 16 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}><div style={{ width: 12, height: 12, borderRadius: 3, background: C.accent }} /><span style={{ fontSize: 11, color: C.muted }}>달성</span></div>
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}><div style={{ width: 12, height: 12, borderRadius: 3, background: C.faint, border: `1px solid ${C.border}` }} /><span style={{ fontSize: 11, color: C.muted }}>미달성</span></div>
+              </div>
+            )}
+            {!selRoutine && routines.length > 0 && (
+              <div style={{ marginTop: 12, color: C.placeholder, fontSize: 12, textAlign: "center" }}>루틴을 선택하면 달성 현황을 볼 수 있어요</div>
+            )}
+          </Card>
+        </>
       )}
     </div>
   );
