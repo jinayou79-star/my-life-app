@@ -22,7 +22,7 @@ const C = {
 
 const TABS = [
   { id: "home", icon: "🏡", label: "홈" },
-  { id: "calendar", icon: "🗓", label: "캘린더" },
+  { id: "calendar", icon: "🗓", label: "일정" },
   { id: "study", icon: "🧠", label: "학습" },
   { id: "timer", icon: "⏱", label: "타이머" },
   { id: "todo", icon: "✏️", label: "할일" },
@@ -244,69 +244,94 @@ function Home({ todos, routines, sessions, readings }) {
         <div style={{ color: C.sub, fontSize: 13, fontStyle: "italic" }}>"{quote}"</div>
       </div>
 
-      {/* today's focus time */}
+      {/* 오늘의 할일 목록 */}
       <div style={{
         background: C.card, border: `1px solid ${C.border}`,
-        borderRadius: 20, padding: "20px",
-        marginBottom: 16,
+        borderRadius: 20, padding: "18px 20px",
+        marginBottom: 14, boxShadow: `0 2px 12px ${C.shadow}`,
+      }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+          <div style={{ color: C.text, fontSize: 15, fontWeight: 800 }}>✏️ 오늘의 할일</div>
+          <Chip color={C.warm1}>{doneTodos}/{todos.length} 완료</Chip>
+        </div>
+        <ProgressBar value={todos.length ? doneTodos / todos.length : 0} color={C.warm1} />
+        <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 8 }}>
+          {todos.length === 0 && (
+            <div style={{ color: C.muted, fontSize: 13, textAlign: "center", padding: "12px 0" }}>할일 탭에서 추가해보세요!</div>
+          )}
+          {todos.map(t => (
+            <div key={t.id} style={{
+              display: "flex", alignItems: "center", gap: 10,
+              background: t.done ? `${C.sage}10` : C.bg,
+              border: `1px solid ${t.done ? C.sage + "44" : C.border}`,
+              borderRadius: 12, padding: "10px 14px",
+              opacity: t.done ? 0.7 : 1,
+            }}>
+              <div style={{
+                width: 20, height: 20, borderRadius: 6, flexShrink: 0,
+                border: `2px solid ${t.done ? C.sage : C.border}`,
+                background: t.done ? C.sage : "transparent",
+                display: "flex", alignItems: "center", justifyContent: "center",
+              }}>
+                {t.done && <span style={{ color: "#fff", fontSize: 10, fontWeight: 900 }}>✓</span>}
+              </div>
+              <span style={{
+                color: C.text, fontSize: 13, flex: 1,
+                textDecoration: t.done ? "line-through" : "none",
+              }}>{t.text}</span>
+              <Chip color={{ 중요: C.warm2, 보통: C.amber, 여유: C.sage }[t.pri] || C.muted}>{t.pri}</Chip>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* 루틴 달성 체크 */}
+      <div style={{
+        background: C.card, border: `1px solid ${C.border}`,
+        borderRadius: 20, padding: "18px 20px",
         boxShadow: `0 2px 12px ${C.shadow}`,
-        display: "flex", alignItems: "center", gap: 16,
       }}>
-        <div style={{
-          width: 56, height: 56, borderRadius: 16,
-          background: `linear-gradient(135deg, ${C.accent}, ${C.accentLight})`,
-          display: "flex", alignItems: "center", justifyContent: "center",
-          fontSize: 24, flexShrink: 0,
-        }}>⏱</div>
-        <div>
-          <div style={{ color: C.muted, fontSize: 12 }}>오늘 집중 시간</div>
-          <div style={{ color: C.text, fontSize: 28, fontWeight: 800, letterSpacing: -1 }}>
-            {Math.floor(totalMin / 60) > 0 && `${Math.floor(totalMin / 60)}시간 `}{totalMin % 60}분
-          </div>
-          <div style={{ color: C.accent, fontSize: 12 }}>🍅 {todaySessions.length}회 완료</div>
-        </div>
-      </div>
-
-      {/* grid */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
-        {[
-          { label: "할일 완료", value: `${doneTodos}/${todos.length}`, icon: "✏️", color: C.warm1 },
-          { label: "루틴 달성", value: `${doneRoutines}/${routines.length}`, icon: "🌿", color: C.sage },
-          { label: "독서 기록", value: `${readings.length}권`, icon: "📚", color: C.amber },
-          { label: "주간 집중", value: `${sessions.length}회`, icon: "📈", color: C.accent },
-        ].map(s => (
-          <div key={s.label} style={{
-            background: C.card, border: `1px solid ${C.border}`,
-            borderRadius: 16, padding: "16px",
-            boxShadow: `0 1px 8px ${C.shadow}`,
-          }}>
-            <div style={{ fontSize: 22, marginBottom: 8 }}>{s.icon}</div>
-            <div style={{ color: s.color, fontSize: 22, fontWeight: 800 }}>{s.value}</div>
-            <div style={{ color: C.muted, fontSize: 11, marginTop: 4 }}>{s.label}</div>
-          </div>
-        ))}
-      </div>
-
-      {/* daily progress */}
-      <div style={{
-        background: C.card, border: `1px solid ${C.border}`,
-        borderRadius: 16, padding: "18px 20px",
-        boxShadow: `0 1px 8px ${C.shadow}`,
-      }}>
-        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}>
-          <span style={{ color: C.text, fontSize: 14, fontWeight: 700 }}>오늘의 할일 달성률</span>
-          <span style={{ color: C.accent, fontWeight: 800 }}>
-            {todos.length ? Math.round(doneTodos / todos.length * 100) : 0}%
-          </span>
-        </div>
-        <ProgressBar value={todos.length ? doneTodos / todos.length : 0} color={C.accent} />
-        <div style={{ display: "flex", justifyContent: "space-between", marginTop: 14, marginBottom: 4 }}>
-          <span style={{ color: C.text, fontSize: 14, fontWeight: 700 }}>루틴 달성률</span>
-          <span style={{ color: C.sage, fontWeight: 800 }}>
-            {routines.length ? Math.round(doneRoutines / routines.length * 100) : 0}%
-          </span>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+          <div style={{ color: C.text, fontSize: 15, fontWeight: 800 }}>🌿 오늘의 루틴</div>
+          <Chip color={C.sage}>{doneRoutines}/{routines.length} 달성</Chip>
         </div>
         <ProgressBar value={routines.length ? doneRoutines / routines.length : 0} color={C.sage} />
+        <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 8 }}>
+          {routines.length === 0 && (
+            <div style={{ color: C.muted, fontSize: 13, textAlign: "center", padding: "12px 0" }}>루틴 탭에서 추가해보세요!</div>
+          )}
+          {["아침","오전","점심","오후","저녁","밤"].map(time => {
+            const group = routines.filter(r => r.time === time);
+            if (!group.length) return null;
+            const TCOLS = { 아침: "#f59e0b", 오전: "#60a5fa", 점심: "#34d399", 오후: "#a78bfa", 저녁: C.warm1, 밤: "#818cf8" };
+            return (
+              <div key={time}>
+                <div style={{ color: TCOLS[time], fontSize: 10, fontWeight: 800, letterSpacing: 1, marginBottom: 6, paddingLeft: 2 }}>{time.toUpperCase()}</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {group.map(r => (
+                    <div key={r.id} style={{
+                      display: "flex", alignItems: "center", gap: 10,
+                      background: r.doneToday ? `${TCOLS[time]}10` : C.bg,
+                      border: `1px solid ${r.doneToday ? TCOLS[time] + "44" : C.border}`,
+                      borderRadius: 12, padding: "10px 14px",
+                    }}>
+                      <div style={{
+                        width: 20, height: 20, borderRadius: "50%", flexShrink: 0,
+                        border: `2px solid ${r.doneToday ? TCOLS[time] : C.border}`,
+                        background: r.doneToday ? TCOLS[time] : "transparent",
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                      }}>
+                        {r.doneToday && <span style={{ color: "#fff", fontSize: 10, fontWeight: 900 }}>✓</span>}
+                      </div>
+                      <span style={{ color: C.text, fontSize: 13, flex: 1 }}>{r.text}</span>
+                      {r.streak > 0 && <span style={{ color: "#f59e0b", fontSize: 11 }}>🔥{r.streak}</span>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
@@ -331,7 +356,7 @@ function Todo({ todos, setTodos }) {
       <STitle>할일 목록 ✏️</STitle>
       <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 18, padding: 16, marginBottom: 16, boxShadow: `0 2px 12px ${C.shadow}` }}>
         <input value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === "Enter" && add()}
-          placeholder="오늘 할 일을 적어보세요..."
+          placeholder="할일을 입력하세요..."
           style={{ width: "100%", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12, padding: "12px 14px", color: C.text, fontSize: 14, outline: "none", boxSizing: "border-box", marginBottom: 12 }} />
         <div style={{ display: "flex", gap: 8 }}>
           {Object.entries(PRIS).map(([p, col]) => (
@@ -1283,43 +1308,52 @@ const ProgressBar = ({ value, color }) => (
   </div>
 );
 
+// ── 로컬스토리지 헬퍼 ──────────────────────────────────────
+function useLocalStorage(key, defaultValue) {
+  const [value, setValue] = useState(() => {
+    try {
+      const saved = localStorage.getItem(key);
+      return saved ? JSON.parse(saved) : defaultValue;
+    } catch {
+      return defaultValue;
+    }
+  });
+
+  const setAndSave = (newVal) => {
+    setValue(prev => {
+      const resolved = typeof newVal === "function" ? newVal(prev) : newVal;
+      try { localStorage.setItem(key, JSON.stringify(resolved)); } catch {}
+      return resolved;
+    });
+  };
+
+  return [value, setAndSave];
+}
+
 // ── APP ────────────────────────────────────────────────────
 export default function App() {
   const [tab, setTab] = useState("home");
-  const [todos, setTodos] = useState([
+
+  const [todos, setTodos] = useLocalStorage("ml_todos", [
     { id: 1, text: "오늘 일정 확인하기", done: true, pri: "중요" },
     { id: 2, text: "독서 30분", done: false, pri: "보통" },
     { id: 3, text: "운동 루틴 체크", done: false, pri: "여유" },
   ]);
-  const [routines, setRoutines] = useState([
-    { id: 1, text: "물 2L 마시기", time: "아침", doneToday: false, streak: 5 },
-    { id: 2, text: "명상 10분", time: "아침", doneToday: true, streak: 12 },
-    { id: 3, text: "산책 20분", time: "오후", doneToday: false, streak: 3 },
-    { id: 4, text: "독서 30분", time: "저녁", doneToday: false, streak: 8 },
-  ]);
-  const [sessions, setSessions] = useState([
-    { id: 1, label: "공부", duration: 25, date: todayKey, time: "09:00" },
-    { id: 2, label: "업무", duration: 25, date: todayKey, time: "10:30" },
-  ]);
-  const [readings, setReadings] = useState([
-    { id: 1, title: "아주 작은 습관의 힘", minutes: 40, page: 120, note: "시스템이 목표보다 중요하다", date: todayKey },
+
+  const [routines, setRoutines] = useLocalStorage("ml_routines", [
+    { id: 1, text: "물 2L 마시기", time: "아침", doneToday: false, streak: 0 },
+    { id: 2, text: "명상 10분", time: "아침", doneToday: false, streak: 0 },
+    { id: 3, text: "산책 20분", time: "오후", doneToday: false, streak: 0 },
+    { id: 4, text: "독서 30분", time: "저녁", doneToday: false, streak: 0 },
   ]);
 
-  const [events, setEvents] = useState([
-    { id: 1, title: "팀 미팅", date: todayKey, time: "14:00", important: false },
-    { id: 2, title: "병원 예약", date: todayKey, time: "10:00", important: true },
-  ]);
+  const [sessions, setSessions] = useLocalStorage("ml_sessions", []);
 
-  const [studyLogs, setStudyLogs] = useState([
-    {
-      id: 1, title: "이차방정식 풀이", subject: "수학", memo: "근의 공식 외우기, 판별식 D=b²-4ac",
-      image: null, date: todayKey,
-      reviews: REVIEW_INTERVALS.map(iv => ({
-        id: `1-${iv.days}`, days: iv.days, label: iv.label, emoji: iv.emoji,
-        dueDate: addDays(todayKey, iv.days), done: false, doneDate: null,
-      })),
-    },
-  ]);
+  const [readings, setReadings] = useLocalStorage("ml_readings", []);
+
+  const [events, setEvents] = useLocalStorage("ml_events", []);
+
+  const [studyLogs, setStudyLogs] = useLocalStorage("ml_studylogs", []);
 
   const views = {
     home: <Home todos={todos} routines={routines} sessions={sessions} readings={readings} />,
