@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useCallback } from "react";
 
 // ── 1. 색상 및 스타일 설정 ──────────────────────────────────
 const C = {
@@ -10,15 +10,7 @@ const C = {
   cream: "#f5e6d0", shadow: "rgba(120,70,20,0.08)",
 };
 
-// ── 2. 유틸리티 함수 ────────────────────────────────────────
-const todayKey = () => new Date().toISOString().slice(0, 10);
-const addDays = (d, n) => {
-  const dt = new Date(d + "T00:00:00"); 
-  dt.setDate(dt.getDate() + n);
-  return dt.toISOString().slice(0, 10);
-};
-
-// ── 3. 커스텀 훅 (데이터 저장) ───────────────────────────────
+// ── 2. 커스텀 훅 (데이터 저장) ───────────────────────────────
 function usePersist(key, def) {
   const [val, setVal] = useState(() => {
     if (typeof window === "undefined") return def;
@@ -37,7 +29,7 @@ function usePersist(key, def) {
   return [val, set];
 }
 
-// ── 4. 공통 UI 컴포넌트 ──────────────────────────────────────
+// ── 3. 공통 UI 컴포넌트 ──────────────────────────────────────
 const Card = ({ children, style = {} }) => (
   <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 18, padding: "16px 18px", boxShadow: `0 2px 12px ${C.shadow}`, ...style }}>{children}</div>
 );
@@ -61,7 +53,7 @@ const TabBtn = ({ active, onClick, label, icon }) => (
   </button>
 );
 
-// ── 5. 설정 탭 (데이터 백업 및 주기 수정) ───────────────────────
+// ── 4. 설정 탭 (데이터 백업 및 주기 수정) ───────────────────────
 function SettingsTab({ reviewDays, setReviewDays, allData, setAllData }) {
   const [tempDays, setTempDays] = useState(reviewDays.join(", "));
 
@@ -115,7 +107,7 @@ function SettingsTab({ reviewDays, setReviewDays, allData, setAllData }) {
   );
 }
 
-// ── 6. 메인 앱 (최하단에 export default 확인) ──────────────────
+// ── 5. 메인 앱 (전체 구조) ──────────────────
 export default function DailyRoutineApp() {
   const [activeTab, setActiveTab] = usePersist("activeTab", "home");
   const [reviewDays, setReviewDays] = usePersist("reviewDays", [1, 3, 7, 15]);
