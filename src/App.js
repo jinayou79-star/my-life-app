@@ -1,147 +1,174 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect, useRef } from "react";
 
-// ── 1. 색상 및 스타일 설정 ──────────────────────────────────
+// ── 1. 디자인 시스템 ──────────────────────────────────
 const C = {
-  bg: "#faf6f1", surface: "#fff9f4", card: "#ffffff",
-  border: "#e8d8c4", accent: "#b5651d", accentL: "#c8773a",
-  warm: "#e8956d", sage: "#6b9e78", amber: "#c9882a",
-  red: "#d4574a", blue: "#5b8fc9", purple: "#8b6bbf",
-  text: "#2d1f0e", sub: "#6b4c2a", muted: "#a07850",
-  cream: "#f5e6d0", shadow: "rgba(120,70,20,0.08)",
+  bg: "#faf6f1", card: "#ffffff", border: "#e8d8c4",
+  accent: "#b5651d", sage: "#6b9e78", text: "#2d1f0e",
+  muted: "#a07850", shadow: "rgba(120,70,20,0.08)", red: "#d4574a"
 };
 
-// ── 2. 커스텀 훅 (데이터 저장) ───────────────────────────────
+// ── 2. 유틸리티 ────────────────────────────────────────
+const todayKey = () => new Date().toISOString().slice(0, 10);
+const addDays = (d, n) => {
+  const dt = new Date(d + "T00:00:00");
+  dt.setDate(dt.getDate() + n);
+  return dt.toISOString().slice(0, 10);
+};
+const fmtSec = (s) => `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
+
+// ── 3. 저장 훅 ──────────────────────────────────────────
 function usePersist(key, def) {
   const [val, setVal] = useState(() => {
-    if (typeof window === "undefined") return def;
-    try { 
-      const s = localStorage.getItem(key); 
-      return s ? JSON.parse(s) : def; 
-    } catch { return def; }
+    try { const s = localStorage.getItem(key); return s ? JSON.parse(s) : def; }
+    catch { return def; }
   });
   const set = useCallback((v) => {
     setVal(prev => {
       const next = typeof v === "function" ? v(prev) : v;
-      try { localStorage.setItem(key, JSON.stringify(next)); } catch {}
+      localStorage.setItem(key, JSON.stringify(next));
       return next;
     });
   }, [key]);
   return [val, set];
 }
 
-// ── 3. 공통 UI 컴포넌트 ──────────────────────────────────────
+// ── 4. UI 컴포넌트 ──────────────────────────────────────
 const Card = ({ children, style = {} }) => (
-  <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 18, padding: "16px 18px", boxShadow: `0 2px 12px ${C.shadow}`, ...style }}>{children}</div>
+  <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 18, padding: "16px 18px", boxShadow: `0 2px 12px ${C.shadow}`, marginBottom: 16, ...style }}>{children}</div>
 );
 
 const Btn = ({ children, onClick, color = C.accent, outline, small, style = {} }) => (
-  <button onClick={onClick} style={{ padding: small ? "7px 14px" : "11px 20px", borderRadius: small ? 20 : 14, border: outline ? `1.5px solid ${color}` : "none", background: outline ? "transparent" : color, color: outline ? color : "#fff", fontSize: small ? 12 : 14, fontWeight: 700, cursor: "pointer", ...style }}>{children}</button>
+  <button onClick={onClick} style={{ padding: small ? "6px 12px" : "12px 20px", borderRadius: 12, border: outline ? `1.5px solid ${color}` : "none", background: outline ? "transparent" : color, color: outline ? color : "#fff", fontSize: small ? 12 : 14, fontWeight: 700, cursor: "pointer", ...style }}>{children}</button>
 );
 
-const Input = ({ value, onChange, placeholder }) => (
-  <input value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} style={{ width: "100%", background: C.bg, border: `1.5px solid ${C.border}`, borderRadius: 12, padding: "11px 14px", color: C.text, fontSize: 14, outline: "none", boxSizing: "border-box" }} />
-);
+// ── 5. 루틴 상세 탭 (타이머 & 기록) ───────────────────────
+function RoutineTab({ routine, routineLogs, setRoutineLogs, reviewDays, onBack }) {
+  const [elapsed, setElapsed] = useState(0);
+  const [isRunning, setIsRunning] = useState(false);
+  const [title, setTitle] = useState("");
+  const timerRef = useRef(null);
 
-const SectionTitle = ({ children }) => (
-  <div style={{ color: C.text, fontSize: 18, fontWeight: 800, marginBottom: 16 }}>{children}</div>
-);
+  useEffect(() => {
+    if (isRunning) timerRef.current = setInterval(() => setElapsed(e => e + 1), 1000);
+    else clearInterval(timerRef.current);
+    return () => clearInterval(timerRef.current);
+  }, [isRunning]);
 
-const TabBtn = ({ active, onClick, label, icon }) => (
-  <button onClick={onClick} style={{ background: "transparent", border: "none", display: "flex", flexDirection: "column", alignItems: "center", gap: 4, cursor: "pointer", flex: 1 }}>
-    <span style={{ fontSize: 20, opacity: active ? 1 : 0.4 }}>{icon}</span>
-    <span style={{ fontSize: 10, fontWeight: 700, color: active ? C.accent : C.muted }}>{label}</span>
-  </button>
-);
-
-// ── 4. 설정 탭 (데이터 백업 및 주기 수정) ───────────────────────
-function SettingsTab({ reviewDays, setReviewDays, allData, setAllData }) {
-  const [tempDays, setTempDays] = useState(reviewDays.join(", "));
-
-  const exportData = () => {
-    const dataStr = JSON.stringify(allData, null, 2);
-    const blob = new Blob([dataStr], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url; a.download = "my_life_backup.json"; a.click();
-  };
-
-  const importData = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      try {
-        const data = JSON.parse(ev.target.result);
-        if (window.confirm("데이터를 복원하시겠습니까? 현재 데이터가 덮어씌워집니다.")) {
-          setAllData(data);
-          window.location.reload();
-        }
-      } catch { alert("잘못된 파일 형식입니다."); }
+  const handleSave = () => {
+    if (!title.trim()) return alert("내용을 입력하세요!");
+    const tk = todayKey();
+    const newEntry = {
+      id: Date.now(),
+      title,
+      time: fmtSec(elapsed),
+      reviews: reviewDays.map(d => ({ date: addDays(tk, d), done: false }))
     };
-    reader.readAsText(file);
+    
+    setRoutineLogs(prev => {
+      const existing = prev.find(l => l.routineId === routine.id && l.date === tk);
+      if (existing) return prev.map(l => l.routineId === routine.id && l.date === tk ? { ...l, entries: [...l.entries, newEntry] } : l);
+      return [...prev, { routineId: routine.id, date: tk, entries: [newEntry] }];
+    });
+    
+    setTitle(""); setElapsed(0); setIsRunning(false);
+    alert("기록되었습니다!");
   };
 
   return (
     <div>
-      <SectionTitle>⚙️ 설정</SectionTitle>
-      <Card style={{ marginBottom: 16 }}>
-        <div style={{ fontWeight: 800, marginBottom: 8, fontSize: 14 }}>📅 복습 주기 설정</div>
-        <div style={{ display: "flex", gap: 8 }}>
-          <Input value={tempDays} onChange={setTempDays} />
-          <Btn small onClick={() => {
-            const next = tempDays.split(",").map(d => parseInt(d.trim())).filter(d => !isNaN(d));
-            setReviewDays(next);
-            alert("저장되었습니다!");
-          }}>저장</Btn>
+      <Btn onClick={onBack} outline small style={{ marginBottom: 12 }}>← 뒤로가기</Btn>
+      <Card>
+        <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 10 }}>{routine.icon} {routine.name}</div>
+        <div style={{ fontSize: 40, fontWeight: 800, textAlign: "center", margin: "20px 0", color: isRunning ? C.sage : C.text }}>{fmtSec(elapsed)}</div>
+        <div style={{ display: "flex", gap: 10 }}>
+          <Btn onClick={() => setIsRunning(!isRunning)} color={isRunning ? C.red : C.sage} style={{ flex: 1 }}>{isRunning ? "정지" : "시작"}</Btn>
+          <Btn onClick={() => setElapsed(0)} outline style={{ flex: 1 }}>초기화</Btn>
         </div>
       </Card>
+      
       <Card>
-        <div style={{ fontWeight: 800, marginBottom: 12, fontSize: 14 }}>💾 데이터 백업</div>
-        <Btn onClick={exportData} outline style={{ width: "100%", marginBottom: 8 }}>📤 내보내기 (.json)</Btn>
-        <div style={{ position: "relative" }}>
-          <Btn outline color={C.sage} style={{ width: "100%" }}>📥 가져오기</Btn>
-          <input type="file" accept=".json" onChange={importData} style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", opacity: 0 }} />
-        </div>
+        <input value={title} onChange={e => setTitle(e.target.value)} placeholder="오늘 공부한 핵심 내용..." style={{ width: "100%", border: "none", borderBottom: `2px solid ${C.border}`, padding: 8, outline: "none", marginBottom: 12 }} />
+        <Btn onClick={handleSave} style={{ width: "100%" }}>오늘의 공부 완료 기록</Btn>
       </Card>
     </div>
   );
 }
 
-// ── 5. 메인 앱 (전체 구조) ──────────────────
+// ── 6. 설정 탭 ──────────────────────────────────────────
+function SettingsTab({ reviewDays, setReviewDays, allData, setAllData }) {
+  const [tempDays, setTempDays] = useState(reviewDays.join(", "));
+  return (
+    <div>
+      <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 16 }}>⚙️ 설정</div>
+      <Card>
+        <div style={{ fontWeight: 800, marginBottom: 8 }}>📅 복습 주기 (일 단위)</div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <input value={tempDays} onChange={e => setTempDays(e.target.value)} style={{ flex: 1, padding: 10, borderRadius: 8, border: `1.5px solid ${C.border}` }} />
+          <Btn onClick={() => setReviewDays(tempDays.split(",").map(Number))} small>저장</Btn>
+        </div>
+      </Card>
+      <Card>
+        <Btn onClick={() => {
+          const blob = new Blob([JSON.stringify(allData)], { type: "application/json" });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a"); a.href = url; a.download = "backup.json"; a.click();
+        }} outline style={{ width: "100%", marginBottom: 8 }}>📤 내보내기</Btn>
+        <input type="file" onChange={e => {
+          const reader = new FileReader();
+          reader.onload = (ev) => { setAllData(JSON.parse(ev.target.result)); window.location.reload(); };
+          reader.readAsText(e.target.files[0]);
+        }} />
+      </Card>
+    </div>
+  );
+}
+
+// ── 7. 메인 앱 ──────────────────────────────────────────
 export default function DailyRoutineApp() {
   const [activeTab, setActiveTab] = usePersist("activeTab", "home");
   const [reviewDays, setReviewDays] = usePersist("reviewDays", [1, 3, 7, 15]);
-  const [routines, setRoutines] = usePersist("routines", [{ id: 1, name: "영어 공부", icon: "📖" }]);
-  const [events, setEvents] = usePersist("events", []);
-  const [todos, setTodos] = usePersist("todos", []);
+  const [routines] = usePersist("routines", [
+    { id: 1, name: "영어 뉴스 번역", icon: "📰" },
+    { id: 2, name: "주식 시장 분석", icon: "📈" }
+  ]);
   const [routineLogs, setRoutineLogs] = usePersist("routineLogs", []);
 
-  const allData = { routines, events, todos, routineLogs, reviewDays };
-  const setAllData = (d) => {
-    if (d.routines) setRoutines(d.routines);
-    if (d.events) setEvents(d.events);
-    if (d.todos) setTodos(d.todos);
-    if (d.routineLogs) setRoutineLogs(d.routineLogs);
-    if (d.reviewDays) setReviewDays(d.reviewDays);
-  };
+  const [selectedRoutine, setSelectedRoutine] = useState(null);
+
+  const allData = { reviewDays, routineLogs };
+  const setAllData = (d) => { setReviewDays(d.reviewDays); setRoutineLogs(d.routineLogs); };
 
   return (
-    <div style={{ maxWidth: 480, margin: "0 auto", minHeight: "100vh", background: C.bg, position: "relative" }}>
-      <div style={{ padding: "20px 16px 100px 16px" }}>
-        {activeTab === "home" && <SectionTitle>🏠 홈 화면</SectionTitle>}
-        {activeTab === "settings" && (
-          <SettingsTab 
-            reviewDays={reviewDays} 
-            setReviewDays={setReviewDays} 
-            allData={allData} 
-            setAllData={setAllData} 
-          />
-        )}
-      </div>
+    <div style={{ maxWidth: 480, margin: "0 auto", minHeight: "100vh", background: C.bg, padding: "20px 16px 80px" }}>
+      {selectedRoutine ? (
+        <RoutineTab routine={selectedRoutine} routineLogs={routineLogs} setRoutineLogs={setRoutineLogs} reviewDays={reviewDays} onBack={() => setSelectedRoutine(null)} />
+      ) : activeTab === "home" ? (
+        <div>
+          <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 16 }}>🏠 오늘의 루틴</div>
+          {routines.map(r => (
+            <Card key={r.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer" }}>
+              <div onClick={() => setSelectedRoutine(r)} style={{ flex: 1 }}>
+                <span style={{ fontSize: 20, marginRight: 10 }}>{r.icon}</span>
+                <span style={{ fontWeight: 700 }}>{r.name}</span>
+              </div>
+              <Btn onClick={() => setSelectedRoutine(r)} small>기록하기</Btn>
+            </Card>
+          ))}
+        </div>
+      ) : (
+        <SettingsTab reviewDays={reviewDays} setReviewDays={setReviewDays} allData={allData} setAllData={setAllData} />
+      )}
 
-      <div style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 480, height: 70, background: "#fff", display: "flex", alignItems: "center", borderTop: `1px solid ${C.border}`, zIndex: 1000 }}>
-        <TabBtn active={activeTab === "home"} onClick={() => setActiveTab("home")} label="홈" icon="🏠" />
-        <TabBtn active={activeTab === "settings"} onClick={() => setActiveTab("settings")} label="설정" icon="⚙️" />
+      {/* 하단 네비게이션 */}
+      <div style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 480, height: 65, background: "#fff", display: "flex", borderTop: `1px solid ${C.border}` }}>
+        <button onClick={() => {setActiveTab("home"); setSelectedRoutine(null);}} style={{ flex: 1, background: "none", border: "none", cursor: "pointer" }}>
+          <div style={{ fontSize: 20, opacity: activeTab === "home" ? 1 : 0.3 }}>🏠</div>
+          <div style={{ fontSize: 10, color: activeTab === "home" ? C.accent : C.muted }}>홈</div>
+        </button>
+        <button onClick={() => {setActiveTab("settings"); setSelectedRoutine(null);}} style={{ flex: 1, background: "none", border: "none", cursor: "pointer" }}>
+          <div style={{ fontSize: 20, opacity: activeTab === "settings" ? 1 : 0.3 }}>⚙️</div>
+          <div style={{ fontSize: 10, color: activeTab === "settings" ? C.accent : C.muted }}>설정</div>
+        </button>
       </div>
     </div>
   );
