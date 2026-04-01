@@ -209,9 +209,7 @@ function Timer({ sessions, setSessions }) {
 }
 
 // ── HOME ───────────────────────────────────────────────────
-function Home({ todos, routines, sessions, readings }) {
-  const todaySessions = sessions.filter(s => s.date === todayKey);
-  const totalMin = todaySessions.reduce((a, b) => a + b.duration, 0);
+function Home({ todos, routines }) {
   const doneTodos = todos.filter(t => t.done).length;
   const doneRoutines = routines.filter(r => r.doneToday).length;
 
@@ -1356,7 +1354,7 @@ export default function App() {
   const [studyLogs, setStudyLogs] = useLocalStorage("ml_studylogs", []);
 
   const views = {
-    home: <Home todos={todos} routines={routines} sessions={sessions} readings={readings} />,
+    home: <Home todos={todos} routines={routines} />,
     calendar: <Calendar todos={todos} routines={routines} sessions={sessions} events={events} setEvents={setEvents} />,
     study: <Study studyLogs={studyLogs} setStudyLogs={setStudyLogs} />,
     timer: <Timer sessions={sessions} setSessions={setSessions} />,
