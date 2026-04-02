@@ -329,7 +329,6 @@ function RoutineTab({ routine, routineLogs, setRoutineLogs }) {
   const fileRef = useRef(null);
   const [fTitle, setFTitle] = useState(""); const [fMemo, setFMemo] = useState(""); const [fImage, setFImage] = useState(null); const [fReview, setFReview] = useState(false);
 
-  const hasTimer = true;
   const hasImage = (routine.fields || []).includes("image");
   const hasMemo = (routine.fields || []).includes("memo");
   const hasReview = (routine.fields || []).includes("review");
@@ -339,8 +338,6 @@ function RoutineTab({ routine, routineLogs, setRoutineLogs }) {
     else clearInterval(timerRef.current);
     return () => clearInterval(timerRef.current);
   }, [running]);
-
-  const todayLog = routineLogs.find(l => l.routineId === routine.id && l.date === tk);
 
   const stopTimer = () => {
     setRunning(false); const secs = elapsed;
