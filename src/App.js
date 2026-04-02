@@ -224,6 +224,10 @@ function CalendarTab({ events, setEvents, todos, setTodos }) {
   const [sel, setSel] = useState(todayKey());
   const [evtTitle, setEvtTitle] = useState(""); const [evtTime, setEvtTime] = useState("09:00"); const [evtImp, setEvtImp] = useState(false);
   const [todoText, setTodoText] = useState(""); const [todoImp, setTodoImp] = useState(false); const [todoDue, setTodoDue] = useState("");
+  // 수정 상태
+  const [editEvtId, setEditEvtId] = useState(null); const [editEvtTitle, setEditEvtTitle] = useState(""); const [editEvtTime, setEditEvtTime] = useState("");
+  const [editTodoId, setEditTodoId] = useState(null); const [editTodoText, setEditTodoText] = useState("");
+
   const tk = todayKey(); const y = month.getFullYear(), m = month.getMonth();
   const firstDay = new Date(y, m, 1).getDay(); const daysInMonth = new Date(y, m + 1, 0).getDate();
   const dKey = (d) => `${y}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
@@ -232,6 +236,17 @@ function CalendarTab({ events, setEvents, todos, setTodos }) {
     if (!todoText.trim()) return;
     setTodos(prev => [...prev, { id: Date.now(), text: todoText.trim(), date: sel, done: false, important: todoImp, dueDate: todoDue || null }]);
     setTodoText(""); setTodoImp(false); setTodoDue("");
+  };
+
+  const saveEvt = (id) => {
+    if (!editEvtTitle.trim()) return;
+    setEvents(prev => prev.map(e => e.id !== id ? e : { ...e, title: editEvtTitle.trim(), time: editEvtTime }));
+    setEditEvtId(null);
+  };
+  const saveTodo = (id) => {
+    if (!editTodoText.trim()) return;
+    setTodos(prev => prev.map(t => t.id !== id ? t : { ...t, text: editTodoText.trim() }));
+    setEditTodoId(null);
   };
 
   return (
@@ -272,9 +287,26 @@ function CalendarTab({ events, setEvents, todos, setTodos }) {
         <div style={{ color: C.muted, fontSize: 11, fontWeight: 700, letterSpacing: 1, marginBottom: 8 }}>일정</div>
         {events.filter(e => e.date === sel).length === 0 && <div style={{ color: C.placeholder, fontSize: 13, marginBottom: 8 }}>없음</div>}
         {events.filter(e => e.date === sel).sort((a, b) => a.time > b.time ? 1 : -1).map(e => (
-          <div key={e.id} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, padding: "8px 10px", background: C.faint, borderRadius: 8, borderLeft: `2px solid ${e.important ? C.red : C.accentMid}` }}>
-            <div style={{ flex: 1 }}><div style={{ color: C.accent, fontSize: 13, fontWeight: 600 }}>{e.important ? "★ " : ""}{e.title}</div><div style={{ color: C.muted, fontSize: 11 }}>{e.time}</div></div>
-            <button onClick={() => setEvents(prev => prev.filter(x => x.id !== e.id))} style={{ background: "transparent", border: "none", color: C.muted, cursor: "pointer", fontSize: 16 }}>×</button>
+          <div key={e.id} style={{ marginBottom: 8 }}>
+            {editEvtId === e.id ? (
+              <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                <input value={editEvtTitle} onChange={ev => setEditEvtTitle(ev.target.value)}
+                  style={{ flex: 1, background: C.faint, border: `1.5px solid ${C.accent}`, borderRadius: 8, padding: "7px 10px", color: C.accent, fontSize: 13, outline: "none" }} />
+                <input type="time" value={editEvtTime} onChange={ev => setEditEvtTime(ev.target.value)}
+                  style={{ background: C.faint, border: `1px solid ${C.border}`, borderRadius: 8, padding: "0 8px", color: C.accent, fontSize: 12, outline: "none", width: 80, height: 34 }} />
+                <Btn small onClick={() => saveEvt(e.id)}>저장</Btn>
+                <button onClick={() => setEditEvtId(null)} style={{ background: "transparent", border: "none", color: C.muted, cursor: "pointer", fontSize: 16 }}>×</button>
+              </div>
+            ) : (
+              <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", background: C.faint, borderRadius: 8, borderLeft: `2px solid ${e.important ? C.red : C.accentMid}` }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ color: C.accent, fontSize: 13, fontWeight: 600 }}>{e.important ? "★ " : ""}{e.title}</div>
+                  <div style={{ color: C.muted, fontSize: 11 }}>{e.time}</div>
+                </div>
+                <button onClick={() => { setEditEvtId(e.id); setEditEvtTitle(e.title); setEditEvtTime(e.time); }} style={{ background: "transparent", border: `1px solid ${C.border}`, borderRadius: 6, padding: "3px 8px", color: C.accentMid, cursor: "pointer", fontSize: 11 }}>수정</button>
+                <button onClick={() => setEvents(prev => prev.filter(x => x.id !== e.id))} style={{ background: "transparent", border: `1px solid ${C.border}`, borderRadius: 6, padding: "3px 8px", color: C.red, cursor: "pointer", fontSize: 11 }}>삭제</button>
+              </div>
+            )}
           </div>
         ))}
         <div style={{ display: "flex", gap: 6, marginBottom: 16 }}>
@@ -290,17 +322,29 @@ function CalendarTab({ events, setEvents, todos, setTodos }) {
         <div style={{ color: C.muted, fontSize: 11, fontWeight: 700, letterSpacing: 1, marginBottom: 8 }}>할일</div>
         {todos.filter(t => t.date === sel).length === 0 && <div style={{ color: C.placeholder, fontSize: 13, marginBottom: 8 }}>없음</div>}
         {todos.filter(t => t.date === sel).map(t => (
-          <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, opacity: t.done ? 0.55 : 1 }}>
-            <button onClick={() => setTodos(prev => prev.map(x => x.id === t.id ? { ...x, done: !x.done } : x))} style={{ width: 20, height: 20, borderRadius: 5, border: `1.5px solid ${t.done ? C.accent : C.border2}`, background: t.done ? C.accent : "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-              {t.done && <span style={{ color: "#fff", fontSize: 10, fontWeight: 900 }}>✓</span>}
-            </button>
-            <span style={{ flex: 1, color: C.accent, fontSize: 13, textDecoration: t.done ? "line-through" : "none" }}>{t.important ? "★ " : ""}{t.text}</span>
-            {t.dueDate && <span style={{ color: C.muted, fontSize: 11, flexShrink: 0 }}>~{t.dueDate}</span>}
-            <button onClick={() => setTodos(prev => prev.filter(x => x.id !== t.id))} style={{ background: "transparent", border: "none", color: C.muted, cursor: "pointer", fontSize: 16 }}>×</button>
+          <div key={t.id} style={{ marginBottom: 8 }}>
+            {editTodoId === t.id ? (
+              <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                <input value={editTodoText} onChange={e => setEditTodoText(e.target.value)}
+                  style={{ flex: 1, background: C.faint, border: `1.5px solid ${C.accent}`, borderRadius: 8, padding: "7px 10px", color: C.accent, fontSize: 13, outline: "none" }} />
+                <Btn small onClick={() => saveTodo(t.id)}>저장</Btn>
+                <button onClick={() => setEditTodoId(null)} style={{ background: "transparent", border: "none", color: C.muted, cursor: "pointer", fontSize: 16 }}>×</button>
+              </div>
+            ) : (
+              <div style={{ display: "flex", alignItems: "center", gap: 8, opacity: t.done ? 0.55 : 1 }}>
+                <button onClick={() => setTodos(prev => prev.map(x => x.id === t.id ? { ...x, done: !x.done } : x))} style={{ width: 20, height: 20, borderRadius: 5, border: `1.5px solid ${t.done ? C.accent : C.border2}`, background: t.done ? C.accent : "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  {t.done && <span style={{ color: "#fff", fontSize: 10, fontWeight: 900 }}>✓</span>}
+                </button>
+                <span style={{ flex: 1, color: C.accent, fontSize: 13, textDecoration: t.done ? "line-through" : "none" }}>{t.important ? "★ " : ""}{t.text}</span>
+                {t.dueDate && <span style={{ color: C.muted, fontSize: 11, flexShrink: 0 }}>~{t.dueDate}</span>}
+                <button onClick={() => { setEditTodoId(t.id); setEditTodoText(t.text); }} style={{ background: "transparent", border: `1px solid ${C.border}`, borderRadius: 6, padding: "3px 8px", color: C.accentMid, cursor: "pointer", fontSize: 11 }}>수정</button>
+                <button onClick={() => setTodos(prev => prev.filter(x => x.id !== t.id))} style={{ background: "transparent", border: `1px solid ${C.border}`, borderRadius: 6, padding: "3px 8px", color: C.red, cursor: "pointer", fontSize: 11 }}>삭제</button>
+              </div>
+            )}
           </div>
         ))}
-        {/* 할일 입력 — 완료일 포함 */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        {/* 할일 입력 */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 8 }}>
           <div style={{ display: "flex", gap: 6 }}>
             <Input value={todoText} onChange={setTodoText} placeholder="할일 추가..." style={{ flex: 1 }} onKeyDown={e => e.key === "Enter" && addTodo()} />
             <button onClick={() => setTodoImp(v => !v)} style={{ width: 36, height: 36, borderRadius: 8, border: `1px solid ${todoImp ? C.red : C.border}`, background: todoImp ? `${C.red}14` : C.faint, cursor: "pointer" }}>★</button>
@@ -454,16 +498,23 @@ function RoutineTab({ routine, routineLogs, setRoutineLogs }) {
                   <div style={{ color: C.muted, fontSize: 11, marginTop: 4 }}>⏱ 오늘 누적 {fmtSec(entryLog.totalSec)}</div>
                 )}
               </div>
-              {/* 항목별 타이머 버튼 */}
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, flexShrink: 0 }}>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6, flexShrink: 0 }}>
+                {/* 타이머 버튼 */}
                 {isRunningThis ? (
-                  <>
-                    <div style={{ color: C.accent, fontSize: 13, fontWeight: 800, minWidth: 44, textAlign: "center" }}>{fmtSec(elapsed)}</div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <div style={{ color: C.accent, fontSize: 13, fontWeight: 800 }}>{fmtSec(elapsed)}</div>
                     <button onClick={stopTimer} style={{ background: C.accent, border: "none", color: "#fff", borderRadius: 8, padding: "5px 10px", cursor: "pointer", fontSize: 11, fontWeight: 700 }}>■ 정지</button>
-                  </>
+                  </div>
                 ) : (
-                  <button onClick={() => { setActiveEntryId(entry.id); setElapsed(0); setRunning(true); }} style={{ background: C.faint, border: `1px solid ${C.border}`, color: C.accentMid, borderRadius: 8, padding: "5px 10px", cursor: "pointer", fontSize: 11, fontWeight: 700, whiteSpace: "nowrap" }}>▶ 시작</button>
+                  <button onClick={() => { setActiveEntryId(entry.id); setElapsed(0); setRunning(true); }} style={{ background: C.faint, border: `1px solid ${C.border}`, color: C.accentMid, borderRadius: 8, padding: "5px 10px", cursor: "pointer", fontSize: 11, fontWeight: 700 }}>▶ 시작</button>
                 )}
+                {/* 삭제 버튼 */}
+                <button onClick={() => {
+                  if (!window.confirm("이 기록을 삭제할까요?")) return;
+                  setRoutineLogs(prev => prev.map(log => ({
+                    ...log, entries: (log.entries || []).filter(en => en.id !== entry.id)
+                  })));
+                }} style={{ background: "transparent", border: `1px solid ${C.border}`, borderRadius: 6, padding: "3px 8px", color: C.red, cursor: "pointer", fontSize: 11 }}>삭제</button>
               </div>
             </div>
             {(entry.reviews || []).length > 0 && (
@@ -632,10 +683,17 @@ function StatsTab({ routines, routineLogs }) {
 // ── 설정 ─────────────────────────────────────────────────
 function SettingsTab({ routines, setRoutines, todos, setTodos, events, setEvents, routineLogs, setRoutineLogs }) {
   const [name, setName] = useState(""); const [icon, setIcon] = useState("📌"); const [fields, setFields] = useState(["image","memo","review"]);
+  const [editId, setEditId] = useState(null); const [editName, setEditName] = useState(""); const [editIcon, setEditIcon] = useState("📌");
   const importRef = useRef(null);
   const ICONS = ["📌","📚","✏️","🏃","🎵","💪","🧘","🎨","💻","🌿","⚽","🍎","📖","🔬","🎯","🧠","🎤","🏊","🚴","🍳"];
   const FIELD_OPTIONS = [{ id: "image", label: "📸 이미지" }, { id: "memo", label: "📝 메모" }, { id: "review", label: "🔔 복습 알람" }];
   const toggleField = (f) => setFields(prev => prev.includes(f) ? prev.filter(x => x !== f) : [...prev, f]);
+
+  const saveRoutineEdit = (id) => {
+    if (!editName.trim()) return;
+    setRoutines(prev => prev.map(r => r.id !== id ? r : { ...r, name: editName.trim(), icon: editIcon }));
+    setEditId(null);
+  };
 
   const exportData = () => {
     const blob = new Blob([JSON.stringify({ routines, todos, events, routineLogs, exportedAt: new Date().toISOString() }, null, 2)], { type: "application/json" });
@@ -668,13 +726,32 @@ function SettingsTab({ routines, setRoutines, todos, setTodos, events, setEvents
         <Card style={{ marginBottom: 14 }}>
           <div style={{ color: C.accent, fontSize: 13, fontWeight: 700, marginBottom: 14 }}>루틴 목록</div>
           {routines.map(r => (
-            <div key={r.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: C.faint, borderRadius: 10, marginBottom: 6 }}>
-              <span style={{ fontSize: 18 }}>{r.icon}</span>
-              <div style={{ flex: 1 }}>
-                <div style={{ color: C.accent, fontSize: 13, fontWeight: 600 }}>{r.name}</div>
-                <div style={{ color: C.muted, fontSize: 11, marginTop: 2 }}>⏱ 타이머 · {(r.fields || []).filter(f => f !== "timer").map(f => ({ image: "📸 이미지", memo: "📝 메모", review: "🔔 복습알람" })[f]).filter(Boolean).join(" · ") || "기본"}</div>
-              </div>
-              <button onClick={() => { if (!window.confirm("삭제할까요?")) return; setRoutines(prev => prev.filter(x => x.id !== r.id)); setRoutineLogs(prev => prev.filter(l => l.routineId !== r.id)); }} style={{ background: "transparent", border: `1px solid ${C.border}`, borderRadius: 6, padding: "3px 9px", color: C.red, cursor: "pointer", fontSize: 12 }}>삭제</button>
+            <div key={r.id} style={{ marginBottom: 8 }}>
+              {editId === r.id ? (
+                <div style={{ background: C.faint, borderRadius: 12, padding: 12, border: `1.5px solid ${C.accent}` }}>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 10 }}>
+                    {ICONS.map(ic => (
+                      <button key={ic} onClick={() => setEditIcon(ic)} style={{ width: 32, height: 32, borderRadius: 7, fontSize: 16, border: `1.5px solid ${editIcon === ic ? C.accent : C.border}`, background: editIcon === ic ? C.surface : "transparent", cursor: "pointer" }}>{ic}</button>
+                    ))}
+                  </div>
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <input value={editName} onChange={e => setEditName(e.target.value)}
+                      style={{ flex: 1, background: C.surface, border: `1.5px solid ${C.accent}`, borderRadius: 8, padding: "8px 10px", color: C.accent, fontSize: 13, outline: "none" }} />
+                    <Btn small onClick={() => saveRoutineEdit(r.id)}>저장</Btn>
+                    <button onClick={() => setEditId(null)} style={{ background: "transparent", border: "none", color: C.muted, cursor: "pointer", fontSize: 16 }}>×</button>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: C.faint, borderRadius: 10 }}>
+                  <span style={{ fontSize: 18 }}>{r.icon}</span>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ color: C.accent, fontSize: 13, fontWeight: 600 }}>{r.name}</div>
+                    <div style={{ color: C.muted, fontSize: 11, marginTop: 2 }}>⏱ 타이머 · {(r.fields || []).filter(f => f !== "timer").map(f => ({ image: "📸 이미지", memo: "📝 메모", review: "🔔 복습알람" })[f]).filter(Boolean).join(" · ") || "기본"}</div>
+                  </div>
+                  <button onClick={() => { setEditId(r.id); setEditName(r.name); setEditIcon(r.icon); }} style={{ background: "transparent", border: `1px solid ${C.border}`, borderRadius: 6, padding: "3px 9px", color: C.accentMid, cursor: "pointer", fontSize: 12 }}>수정</button>
+                  <button onClick={() => { if (!window.confirm("삭제할까요?")) return; setRoutines(prev => prev.filter(x => x.id !== r.id)); setRoutineLogs(prev => prev.filter(l => l.routineId !== r.id)); }} style={{ background: "transparent", border: `1px solid ${C.border}`, borderRadius: 6, padding: "3px 9px", color: C.red, cursor: "pointer", fontSize: 12 }}>삭제</button>
+                </div>
+              )}
             </div>
           ))}
         </Card>
