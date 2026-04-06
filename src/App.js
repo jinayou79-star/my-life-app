@@ -66,6 +66,14 @@ const STitle = ({ children, action }) => (
     {action}
   </div>
 );
+const NavBtn = ({ t, isActive, onClick }) => (
+  <button onClick={onClick} style={{ flexShrink: 0, minWidth: 52, display: "flex", flexDirection: "column", alignItems: "center", gap: 3, background: "transparent", border: "none", cursor: "pointer", padding: "4px 2px" }}>
+    <div style={{ width: 34, height: 34, borderRadius: 10, background: isActive ? C.accent : "transparent", display: "flex", alignItems: "center", justifyContent: "center", fontSize: isActive ? 12 : 17, color: isActive ? "#fff" : C.muted, fontWeight: 700, transition: "all 0.15s" }}>
+      {isActive ? t.label.slice(0, 2) : t.icon}
+    </div>
+    {!isActive && <div style={{ fontSize: 9, color: C.muted, maxWidth: 48, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.label}</div>}
+  </button>
+);
 
 // ── 홈 ──────────────────────────────────────────────────────
 function HomeTab({ routines, events, todos, setTodos, onTabChange, routineLogs, setRoutineLogs, nickname }) {
@@ -740,10 +748,9 @@ function StatsTab({ routines, routineLogs }) {
 }
 
 // ── 설정 ─────────────────────────────────────────────────
-function SettingsTab({ routines, setRoutines, todos, setTodos, events, setEvents, routineLogs, setRoutineLogs }) {
+function SettingsTab({ routines, setRoutines, todos, setTodos, events, setEvents, routineLogs, setRoutineLogs, nickname, setNickname }) {
   const [name, setName] = useState(""); const [icon, setIcon] = useState("📌"); const [fields, setFields] = useState(["image","memo","review"]);
   const [editId, setEditId] = useState(null); const [editName, setEditName] = useState(""); const [editIcon, setEditIcon] = useState("📌");
-  const [nickname, setNickname] = usePersist("ml3_nickname", "");
   const [nicknameInput, setNicknameInput] = useState(nickname);
   const [nicknameSaved, setNicknameSaved] = useState(false);
   const importRef = useRef(null);
@@ -884,7 +891,7 @@ export default function App() {
   const [todos, setTodos] = usePersist("ml3_todos", []);
   const [events, setEvents] = usePersist("ml3_events", []);
   const [routineLogs, setRoutineLogs] = usePersist("ml3_routineLogs", []);
-  const [nickname] = usePersist("ml3_nickname", "");
+  const [nickname, setNickname] = usePersist("ml3_nickname", "");
   const [activeTab, setActiveTab] = useState("home");
 
   const FIXED = [{ id: "home", icon: "○", label: "홈" }, { id: "calendar", icon: "□", label: "일정" }];
@@ -901,7 +908,7 @@ export default function App() {
     if (activeTab === "home") return <HomeTab routines={routines} events={events} todos={todos} setTodos={setTodos} onTabChange={setActiveTab} routineLogs={routineLogs} setRoutineLogs={setRoutineLogs} nickname={nickname} />;
     if (activeTab === "calendar") return <CalendarTab events={events} setEvents={setEvents} todos={todos} setTodos={setTodos} />;
     if (activeTab === "stats") return <StatsTab routines={routines} routineLogs={routineLogs} />;
-    if (activeTab === "settings") return <SettingsTab routines={routines} setRoutines={setRoutines} todos={todos} setTodos={setTodos} events={events} setEvents={setEvents} routineLogs={routineLogs} setRoutineLogs={setRoutineLogs} />;
+    if (activeTab === "settings") return <SettingsTab routines={routines} setRoutines={setRoutines} todos={todos} setTodos={setTodos} events={events} setEvents={setEvents} routineLogs={routineLogs} setRoutineLogs={setRoutineLogs} nickname={nickname} setNickname={setNickname} />;
     const rt = ROUTINE_TABS.find(t => t.id === activeTab);
     if (rt) { const routine = routines.find(r => r.id === rt.routineId); if (routine) return <RoutineTab routine={routine} routineLogs={routineLogs} setRoutineLogs={setRoutineLogs} />; }
     return null;
@@ -925,19 +932,22 @@ export default function App() {
 
       <div style={{ flex: 1, padding: "16px 20px 88px", overflowY: "auto" }}>{renderContent()}</div>
 
+      {/* 하단 탭 — 고정탭 항상 보임, 루틴탭 중간에 스크롤 */}
       <div style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 430, background: C.surface, borderTop: `1px solid ${C.border}`, zIndex: 100 }}>
-        <div style={{ display: "flex", overflowX: "auto", padding: "8px 4px 18px", scrollbarWidth: "none" }}>
-          {ALL_TABS.map(t => {
-            const isActive = activeTab === t.id;
-            return (
-              <button key={t.id} onClick={() => setActiveTab(t.id)} style={{ flexShrink: 0, minWidth: 56, display: "flex", flexDirection: "column", alignItems: "center", gap: 3, background: "transparent", border: "none", cursor: "pointer", padding: "4px 4px" }}>
-                <div style={{ width: 36, height: 36, borderRadius: 10, background: isActive ? C.accent : "transparent", display: "flex", alignItems: "center", justifyContent: "center", fontSize: isActive ? 13 : 18, color: isActive ? "#fff" : C.muted, fontWeight: 700, transition: "all 0.15s" }}>
-                  {isActive ? t.label.slice(0, 2) : t.icon}
-                </div>
-                {!isActive && <div style={{ fontSize: 9, color: C.muted }}>{t.label.slice(0, 4)}</div>}
-              </button>
-            );
-          })}
+        <div style={{ display: "flex", padding: "8px 4px 18px", alignItems: "flex-start" }}>
+          {/* 홈·일정 고정 */}
+          {FIXED.map(t => <NavBtn key={t.id} t={t} isActive={activeTab === t.id} onClick={() => setActiveTab(t.id)} />)}
+
+          {/* 루틴 탭 — 스크롤 영역 */}
+          {ROUTINE_TABS.length > 0 && (
+            <div style={{ flex: 1, display: "flex", overflowX: "auto", scrollbarWidth: "none", msOverflowStyle: "none" }}>
+              {ROUTINE_TABS.map(t => <NavBtn key={t.id} t={t} isActive={activeTab === t.id} onClick={() => setActiveTab(t.id)} />)}
+            </div>
+          )}
+          {ROUTINE_TABS.length === 0 && <div style={{ flex: 1 }} />}
+
+          {/* 통계·설정 고정 */}
+          {END.map(t => <NavBtn key={t.id} t={t} isActive={activeTab === t.id} onClick={() => setActiveTab(t.id)} />)}
         </div>
       </div>
     </div>
