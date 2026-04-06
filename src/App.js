@@ -740,6 +740,9 @@ function SettingsTab({ routines, setRoutines, todos, setTodos, events, setEvents
           </Btn>
         </div>
       </Card>
+
+      {/* 루틴 추가 */}
+      <Card style={{ marginBottom: 14 }}>
         <div style={{ color: C.accent, fontSize: 13, fontWeight: 700, marginBottom: 14 }}>루틴 추가</div>
         <div style={{ color: C.muted, fontSize: 11, fontWeight: 700, letterSpacing: 1, marginBottom: 8 }}>아이콘</div>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginBottom: 14 }}>
