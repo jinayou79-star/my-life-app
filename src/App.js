@@ -373,6 +373,10 @@ function RoutineTab({ routine, routineLogs, setRoutineLogs }) {
   const timerRef = useRef(null);
   const fileRef = useRef(null);
   const [fTitle, setFTitle] = useState(""); const [fMemo, setFMemo] = useState(""); const [fImage, setFImage] = useState(null); const [fReview, setFReview] = useState(false);
+  // 수정 상태
+  const [editEntryId, setEditEntryId] = useState(null);
+  const [eTitle, setETitle] = useState(""); const [eMemo, setEMemo] = useState(""); const [eImage, setEImage] = useState(null);
+  const editFileRef = useRef(null);
 
   const hasImage = (routine.fields || []).includes("image");
   const hasMemo = (routine.fields || []).includes("memo");
@@ -404,6 +408,15 @@ function RoutineTab({ routine, routineLogs, setRoutineLogs }) {
       return [...prev, { id: Date.now() + 1, routineId: routine.id, date: tk, totalSec: 0, timerDone: false, sessions: [], entries: [entry] }];
     });
     setFTitle(""); setFMemo(""); setFImage(null); setFReview(false); setView("list");
+  };
+
+  const saveEdit = () => {
+    if (!eTitle.trim()) return;
+    setRoutineLogs(prev => prev.map(log => ({
+      ...log,
+      entries: (log.entries || []).map(en => en.id !== editEntryId ? en : { ...en, title: eTitle.trim(), memo: eMemo, image: eImage })
+    })));
+    setEditEntryId(null); setView("list");
   };
 
   const allEntries = routineLogs.filter(l => l.routineId === routine.id).flatMap(l => (l.entries || []).map(e => ({ ...e, logId: l.id })));
@@ -441,6 +454,44 @@ function RoutineTab({ routine, routineLogs, setRoutineLogs }) {
             })}
           </Card>
         )}
+      </div>
+    );
+  }
+
+  if (view === "edit") {
+    return (
+      <div style={{ paddingBottom: 24 }}>
+        <button onClick={() => { setView("list"); setEditEntryId(null); }} style={{ background: "transparent", border: "none", color: C.accentMid, cursor: "pointer", fontSize: 13, fontWeight: 700, marginBottom: 16, padding: 0 }}>← 취소</button>
+        <STitle>기록 수정</STitle>
+        <Card>
+          <div style={{ color: C.muted, fontSize: 11, fontWeight: 700, letterSpacing: 1, marginBottom: 6 }}>제목 *</div>
+          <Input value={eTitle} onChange={setETitle} placeholder={`${routine.name} 내용...`} style={{ marginBottom: 14 }} />
+          {hasMemo && (
+            <>
+              <div style={{ color: C.muted, fontSize: 11, fontWeight: 700, letterSpacing: 1, marginBottom: 6 }}>메모</div>
+              <textarea value={eMemo} onChange={e => setEMemo(e.target.value)} placeholder="핵심 내용, 느낀 점..."
+                style={{ width: "100%", background: C.faint, border: `1px solid ${C.border}`, borderRadius: 10, padding: "10px 13px", color: C.accent, fontSize: 14, outline: "none", boxSizing: "border-box", resize: "none", height: 80, marginBottom: 14 }} />
+            </>
+          )}
+          {hasImage && (
+            <>
+              <input ref={editFileRef} type="file" accept="image/*" onChange={e => {
+                const file = e.target.files[0]; if (!file) return;
+                const r = new FileReader(); r.onload = ev => setEImage(ev.target.result); r.readAsDataURL(file);
+              }} style={{ display: "none" }} />
+              <div style={{ color: C.muted, fontSize: 11, fontWeight: 700, letterSpacing: 1, marginBottom: 6 }}>이미지</div>
+              {eImage ? (
+                <div style={{ position: "relative", marginBottom: 14 }}>
+                  <img src={eImage} alt="" style={{ width: "100%", borderRadius: 10, maxHeight: 180, objectFit: "cover", border: `1px solid ${C.border}` }} />
+                  <button onClick={() => setEImage(null)} style={{ position: "absolute", top: 8, right: 8, background: "rgba(0,0,0,0.55)", border: "none", color: "#fff", borderRadius: "50%", width: 26, height: 26, cursor: "pointer" }}>×</button>
+                </div>
+              ) : (
+                <button onClick={() => editFileRef.current.click()} style={{ width: "100%", padding: 14, borderRadius: 10, border: `1.5px dashed ${C.border2}`, background: C.faint, color: C.muted, cursor: "pointer", marginBottom: 14, fontSize: 13 }}>+ 이미지 변경</button>
+              )}
+            </>
+          )}
+          <Btn onClick={saveEdit} disabled={!eTitle.trim()} style={{ width: "100%" }}>수정 저장</Btn>
+        </Card>
       </div>
     );
   }
@@ -509,7 +560,14 @@ function RoutineTab({ routine, routineLogs, setRoutineLogs }) {
                 ) : (
                   <button onClick={() => { setActiveEntryId(entry.id); setElapsed(0); setRunning(true); }} style={{ background: C.faint, border: `1px solid ${C.border}`, color: C.accentMid, borderRadius: 8, padding: "5px 10px", cursor: "pointer", fontSize: 11, fontWeight: 700 }}>▶ 시작</button>
                 )}
-                {/* 삭제 버튼 */}
+                {/* 수정/삭제 버튼 */}
+                <button onClick={() => {
+                  setEditEntryId(entry.id);
+                  setETitle(entry.title);
+                  setEMemo(entry.memo || "");
+                  setEImage(entry.image || null);
+                  setView("edit");
+                }} style={{ background: "transparent", border: `1px solid ${C.border}`, borderRadius: 6, padding: "3px 8px", color: C.accentMid, cursor: "pointer", fontSize: 11 }}>수정</button>
                 <button onClick={() => {
                   if (!window.confirm("이 기록을 삭제할까요?")) return;
                   setRoutineLogs(prev => prev.map(log => ({
