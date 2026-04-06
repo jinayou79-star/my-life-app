@@ -377,6 +377,7 @@ function RoutineTab({ routine, routineLogs, setRoutineLogs }) {
   const [detailId, setDetailId] = useState(null);
   const [running, setRunning] = useState(false);
   const [elapsed, setElapsed] = useState(0);
+  const [startTime, setStartTime] = useState(null); // 시작 시각 저장
   const [activeEntryId, setActiveEntryId] = useState(null);
   const timerRef = useRef(null);
   const fileRef = useRef(null);
@@ -390,20 +391,38 @@ function RoutineTab({ routine, routineLogs, setRoutineLogs }) {
   const hasMemo = (routine.fields || []).includes("memo");
   const hasReview = (routine.fields || []).includes("review");
 
+  // 화면이 꺼져도 정확한 시간 측정 — 시작 시각 기준으로 계산
   useEffect(() => {
-    if (running) { timerRef.current = setInterval(() => setElapsed(e => e + 1), 1000); }
-    else clearInterval(timerRef.current);
+    if (running && startTime) {
+      timerRef.current = setInterval(() => {
+        setElapsed(Math.floor((Date.now() - startTime) / 1000));
+      }, 500); // 0.5초마다 갱신 (화면 켜졌을 때 빠르게 보정)
+    } else {
+      clearInterval(timerRef.current);
+    }
     return () => clearInterval(timerRef.current);
-  }, [running]);
+  }, [running, startTime]);
+
+  // 화면이 다시 켜졌을 때(visibilitychange) elapsed 즉시 보정
+  useEffect(() => {
+    const onVisible = () => {
+      if (running && startTime) {
+        setElapsed(Math.floor((Date.now() - startTime) / 1000));
+      }
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [running, startTime]);
 
   const stopTimer = () => {
-    setRunning(false); const secs = elapsed;
+    const secs = startTime ? Math.floor((Date.now() - startTime) / 1000) : elapsed;
+    setRunning(false); setElapsed(0); setStartTime(null);
     setRoutineLogs(prev => {
       const ex = prev.find(l => l.routineId === routine.id && l.date === tk);
       if (ex) return prev.map(l => l.routineId === routine.id && l.date === tk ? { ...l, totalSec: (l.totalSec || 0) + secs, timerDone: true, sessions: [...(l.sessions || []), { sec: secs, time: new Date().toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" }) }] } : l);
       return [...prev, { id: Date.now(), routineId: routine.id, date: tk, totalSec: secs, timerDone: true, sessions: [{ sec: secs, time: new Date().toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" }) }], entries: [] }];
     });
-    setElapsed(0); setActiveEntryId(null);
+    setActiveEntryId(null);
   };
 
   const addEntry = () => {
@@ -564,9 +583,10 @@ function RoutineTab({ routine, routineLogs, setRoutineLogs }) {
                   <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                     <div style={{ color: C.accent, fontSize: 13, fontWeight: 800 }}>{fmtSec(elapsed)}</div>
                     <button onClick={stopTimer} style={{ background: C.accent, border: "none", color: "#fff", borderRadius: 8, padding: "5px 10px", cursor: "pointer", fontSize: 11, fontWeight: 700 }}>■ 정지</button>
+                    <button onClick={() => { setRunning(false); setElapsed(0); setStartTime(null); setActiveEntryId(null); }} style={{ background: "transparent", border: `1px solid ${C.border}`, color: C.muted, borderRadius: 8, padding: "5px 8px", cursor: "pointer", fontSize: 11 }}>취소</button>
                   </div>
                 ) : (
-                  <button onClick={() => { setActiveEntryId(entry.id); setElapsed(0); setRunning(true); }} style={{ background: C.faint, border: `1px solid ${C.border}`, color: C.accentMid, borderRadius: 8, padding: "5px 10px", cursor: "pointer", fontSize: 11, fontWeight: 700 }}>▶ 시작</button>
+                  <button onClick={() => { setActiveEntryId(entry.id); setElapsed(0); setStartTime(Date.now()); setRunning(true); }} style={{ background: C.faint, border: `1px solid ${C.border}`, color: C.accentMid, borderRadius: 8, padding: "5px 10px", cursor: "pointer", fontSize: 11, fontWeight: 700 }}>▶ 시작</button>
                 )}
                 {/* 수정/삭제 버튼 */}
                 <button onClick={() => {
