@@ -68,10 +68,11 @@ const STitle = ({ children, action }) => (
 );
 
 // ── 홈 ──────────────────────────────────────────────────────
-function HomeTab({ routines, events, todos, setTodos, onTabChange, routineLogs, setRoutineLogs }) {
+function HomeTab({ routines, events, todos, setTodos, onTabChange, routineLogs, setRoutineLogs, nickname }) {
   const tk = todayKey();
   const hour = new Date().getHours();
-  const greeting = hour < 6 ? "새벽도 파이팅이에요" : hour < 12 ? "좋은 아침이에요" : hour < 18 ? "오후도 잘 보내고 있나요" : "오늘 하루 수고했어요";
+  const name = nickname ? `, ${nickname}` : "";
+  const greeting = hour < 6 ? `새벽도 파이팅이에요${name}` : hour < 12 ? `좋은 아침이에요${name}` : hour < 18 ? `오후도 잘 보내고 있나요${name}` : `오늘 하루 수고했어요${name}`;
 
   // 이번주 날짜 목록
   const weekDays = Array.from({ length: 7 }, (_, i) => {
@@ -684,10 +685,19 @@ function StatsTab({ routines, routineLogs }) {
 function SettingsTab({ routines, setRoutines, todos, setTodos, events, setEvents, routineLogs, setRoutineLogs }) {
   const [name, setName] = useState(""); const [icon, setIcon] = useState("📌"); const [fields, setFields] = useState(["image","memo","review"]);
   const [editId, setEditId] = useState(null); const [editName, setEditName] = useState(""); const [editIcon, setEditIcon] = useState("📌");
+  const [nickname, setNickname] = usePersist("ml3_nickname", "");
+  const [nicknameInput, setNicknameInput] = useState(nickname);
+  const [nicknameSaved, setNicknameSaved] = useState(false);
   const importRef = useRef(null);
   const ICONS = ["📌","📚","✏️","🏃","🎵","💪","🧘","🎨","💻","🌿","⚽","🍎","📖","🔬","🎯","🧠","🎤","🏊","🚴","🍳"];
   const FIELD_OPTIONS = [{ id: "image", label: "📸 이미지" }, { id: "memo", label: "📝 메모" }, { id: "review", label: "🔔 복습 알람" }];
   const toggleField = (f) => setFields(prev => prev.includes(f) ? prev.filter(x => x !== f) : [...prev, f]);
+
+  const saveNickname = () => {
+    setNickname(nicknameInput.trim());
+    setNicknameSaved(true);
+    setTimeout(() => setNicknameSaved(false), 2000);
+  };
 
   const saveRoutineEdit = (id) => {
     if (!editName.trim()) return;
@@ -703,7 +713,33 @@ function SettingsTab({ routines, setRoutines, todos, setTodos, events, setEvents
   return (
     <div style={{ paddingBottom: 24 }}>
       <STitle>설정</STitle>
+
+      {/* 사용자 정보 */}
       <Card style={{ marginBottom: 14 }}>
+        <div style={{ color: C.accent, fontSize: 13, fontWeight: 700, marginBottom: 14 }}>사용자 정보</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 14 }}>
+          <div style={{ width: 52, height: 52, borderRadius: "50%", background: C.accent, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 20, fontWeight: 800, flexShrink: 0 }}>
+            {nickname ? nickname.slice(0, 1).toUpperCase() : "?"}
+          </div>
+          <div>
+            <div style={{ color: C.accent, fontSize: 16, fontWeight: 800 }}>{nickname || "이름을 설정해주세요"}</div>
+            <div style={{ color: C.muted, fontSize: 12, marginTop: 2 }}>MY LIFE 사용자</div>
+          </div>
+        </div>
+        <div style={{ color: C.muted, fontSize: 11, fontWeight: 700, letterSpacing: 1, marginBottom: 6 }}>별명</div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <input
+            value={nicknameInput}
+            onChange={e => setNicknameInput(e.target.value)}
+            onKeyDown={e => e.key === "Enter" && saveNickname()}
+            placeholder="별명을 입력하세요..."
+            style={{ flex: 1, background: C.faint, border: `1px solid ${C.border}`, borderRadius: 10, padding: "10px 13px", color: C.accent, fontSize: 14, outline: "none" }}
+          />
+          <Btn onClick={saveNickname} disabled={!nicknameInput.trim()}>
+            {nicknameSaved ? "✓ 저장됨" : "저장"}
+          </Btn>
+        </div>
+      </Card>
         <div style={{ color: C.accent, fontSize: 13, fontWeight: 700, marginBottom: 14 }}>루틴 추가</div>
         <div style={{ color: C.muted, fontSize: 11, fontWeight: 700, letterSpacing: 1, marginBottom: 8 }}>아이콘</div>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginBottom: 14 }}>
@@ -787,6 +823,7 @@ export default function App() {
   const [todos, setTodos] = usePersist("ml3_todos", []);
   const [events, setEvents] = usePersist("ml3_events", []);
   const [routineLogs, setRoutineLogs] = usePersist("ml3_routineLogs", []);
+  const [nickname] = usePersist("ml3_nickname", "");
   const [activeTab, setActiveTab] = useState("home");
 
   const FIXED = [{ id: "home", icon: "○", label: "홈" }, { id: "calendar", icon: "□", label: "일정" }];
@@ -800,7 +837,7 @@ export default function App() {
   }, [routines]);
 
   const renderContent = () => {
-    if (activeTab === "home") return <HomeTab routines={routines} events={events} todos={todos} setTodos={setTodos} onTabChange={setActiveTab} routineLogs={routineLogs} setRoutineLogs={setRoutineLogs} />;
+    if (activeTab === "home") return <HomeTab routines={routines} events={events} todos={todos} setTodos={setTodos} onTabChange={setActiveTab} routineLogs={routineLogs} setRoutineLogs={setRoutineLogs} nickname={nickname} />;
     if (activeTab === "calendar") return <CalendarTab events={events} setEvents={setEvents} todos={todos} setTodos={setTodos} />;
     if (activeTab === "stats") return <StatsTab routines={routines} routineLogs={routineLogs} />;
     if (activeTab === "settings") return <SettingsTab routines={routines} setRoutines={setRoutines} todos={todos} setTodos={setTodos} events={events} setEvents={setEvents} routineLogs={routineLogs} setRoutineLogs={setRoutineLogs} />;
@@ -819,7 +856,9 @@ export default function App() {
             <div style={{ fontSize: 9, color: C.muted, letterSpacing: 3, fontWeight: 700, marginBottom: 2 }}>MY LIFE</div>
             <div style={{ fontSize: 18, fontWeight: 800, color: C.accent, letterSpacing: -0.5 }}>{cur?.label}</div>
           </div>
-          <div style={{ width: 36, height: 36, borderRadius: "50%", background: C.accent, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 800, fontSize: 14 }}>J</div>
+          <div style={{ width: 36, height: 36, borderRadius: "50%", background: C.accent, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 800, fontSize: 14 }}>
+            {nickname ? nickname.slice(0, 1).toUpperCase() : "?"}
+          </div>
         </div>
       </div>
 
